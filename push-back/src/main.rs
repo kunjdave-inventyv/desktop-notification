@@ -10,10 +10,9 @@ use serde_json::json;
 use std::sync::{Arc, Mutex};
 use tower_http::cors::{Any, CorsLayer};
 use web_push::{
-    ContentEncoding, IsahcWebPushClient, SubscriptionInfo, VapidSignatureBuilder, WebPushClient,
-    WebPushMessageBuilder,
+    ContentEncoding, IsahcWebPushClient, SubscriptionInfo, SubscriptionKeys, VapidSignatureBuilder, WebPushClient, WebPushMessageBuilder
 };
-
+use web_push::*;
 // ── VAPID Keys ──────────────────────────────────────────────────────────────
 const VAPID_PUBLIC_KEY: &str =
     "BNabC-w7D0OU7BafBOdV_ZU2BlPkt_TEXFxqtDWRNLU8X__dPDrY0hU3VQNr2Rq10c8RCRq8dVMizjNmoNApvFc";
@@ -78,15 +77,17 @@ async fn send_push(State(sub_store): State<SharedSub>) -> impl IntoResponse {
     })
     .to_string();
 
-    let subscription_info = SubscriptionInfo::new(
-        sub.endpoint.clone(),
-        sub.keys.p256dh.clone(),
-        sub.keys.auth.clone(),
-    );
+    let subscription_info = SubscriptionInfo {
+        endpoint: sub.endpoint.clone(),
+        keys: SubscriptionKeys {
+            p256dh: sub.keys.p256dh.clone(),
+            auth: sub.keys.auth.clone(),
+        },
+    };
 
-    let sig_builder = VapidSignatureBuilder::from_base64_no_sub(
+    let sig_builder = VapidSignatureBuilder::from_base64(
         VAPID_PRIVATE_KEY,
-        web_push::URL_SAFE_NO_PAD,
+        URL_SAFE_NO_PAD,
         &subscription_info,
     )
     .expect("failed to build VAPID signature");
