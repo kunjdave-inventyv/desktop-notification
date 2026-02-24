@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FCM Test Application</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        margin: 0;
+        background-color: #f5f5f5;
+      }
+      .container {
+        background: white;
+        padding: 2rem;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        max-width: 80%;
+        word-break: break-all;
+      }
+      h1 { color: #333; margin-top: 0; }
+      #token {
+        background: #eee;
+        padding: 1rem;
+        border-radius: 4px;
+        font-family: monospace;
+        margin-top: 1rem;
+        min-height: 1.2em;
+      }
+      .status { color: #666; font-size: 0.9rem; }
+    </style>
+  </head>
+
+  <body>
+    <div class="container">
+      <h1>FCM Token Generator</h1>
+      <p class="status">Requesting notification permission and generating token...</p>
+      <div id="token">No token generated yet.</div>
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-messaging-compat.js"></script>
+    
+    <script>
+      const firebaseConfig = {
+        apiKey: "AIzaSyBn6oyGwcMmkxfAN5oDQYUkazm-7TKiHO0",
+        authDomain: "notification-25684.firebaseapp.com",
+        projectId: "notification-25684",
+        messagingSenderId: "572073347602",
+        appId: "1:572073347602:web:a23cfb9769182f1759a6cb",
+      };
+
+      const VAPID_KEY = "BO9faYhBz9d_XZljy1qc_qE4pX09zy0SNUtAMynYYAApEIZrQxwSjVOIgSQYY3m7fVQyTCq5yl7bucLdWV55Fqc";
+
+      firebase.initializeApp(firebaseConfig);
+      const messaging = firebase.messaging();
+
+      async function initFCM() {
+        const tokenDisplay = document.getElementById("token");
+        const statusDisplay = document.querySelector(".status");
+
+        try {
+          // Register service worker
+          console.log("Registering Service Worker...");
+          await navigator.serviceWorker.register("firebase-messaging-sw.js");
+          
+          const registration = await navigator.serviceWorker.ready;
+          console.log("Service Worker ready");
+
+          const permission = await Notification.requestPermission();
+          if (permission !== "granted") {
+            statusDisplay.innerText = "Notification permission denied.";
+            return;
+          }
+
+          statusDisplay.innerText = "Permission granted. Getting token...";
+          const token = await messaging.getToken({
+            vapidKey: VAPID_KEY,
+            serviceWorkerRegistration: registration,
+          });
+
+          if (token) {
+            console.log("TOKEN generated successfully");
+            tokenDisplay.innerText = token;
+            statusDisplay.innerText = "Token generated successfully!";
+          } else {
+            statusDisplay.innerText = "No token available. Check console.";
+          }
+        } catch (e) {
+          console.error("FCM Initialization Error:", e);
+          statusDisplay.innerText = "Error: " + e.message;
+        }
+      }
+
+      if ("serviceWorker" in navigator) {
+        initFCM();
+      } else {
+        document.querySelector(".status").innerText = "Service Workers are not supported in this browser.";
+      }
+    </script>
+  </body>
+</html>

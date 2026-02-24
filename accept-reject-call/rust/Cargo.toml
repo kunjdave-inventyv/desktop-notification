@@ -1,0 +1,25 @@
+[package]
+name    = "signaling-server"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Web framework
+axum            = { version = "0.7", features = ["ws"] }
+tower-http      = { version = "0.5", features = ["cors"] }
+tokio           = { version = "1",   features = ["full"] }
+futures-util    = "0.3"
+
+# Serialization
+serde           = { version = "1", features = ["derive"] }
+serde_json      = "1"
+
+# HTTP client (used to call FCM HTTP v1 API)
+reqwest         = { version = "0.12", features = ["json"] }
+
+# Google / Firebase auth — provides service-account OAuth2 tokens
+# TokenProvider trait + CustomServiceAccount are the public API in v0.12
+gcp_auth        = "0.12"
+
+# Environment variable loading
+dotenvy         = "0.15"
