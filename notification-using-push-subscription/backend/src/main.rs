@@ -93,8 +93,15 @@ async fn send_push(State(sub_store): State<SharedSub>) -> impl IntoResponse {
     .expect("failed to build VAPID signature");
 
     let mut msg_builder = WebPushMessageBuilder::new(&subscription_info);
+
     msg_builder.set_payload(ContentEncoding::Aes128Gcm, payload.as_bytes());
     msg_builder.set_vapid_signature(sig_builder.build().expect("failed to sign"));
+
+    // ✅ Add TTL here (must be > 0 for Edge)
+    msg_builder.set_ttl(60); // 60 seconds
+
+    // Optional but recommended
+    msg_builder.set_urgency(Urgency::Normal);
 
     let message = msg_builder.build().expect("failed to build message");
 

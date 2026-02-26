@@ -1,0 +1,53 @@
+:root {
+    /* Microsoft Teams Colors */
+    --teams-primary: #4b53bc;
+    --teams-primary-hover: #3b44a3;
+    --teams-bg-light: #f5f5f5;
+    --teams-bg-white: #ffffff;
+    --teams-text-black: #242424;
+    --teams-text-gray: #616161;
+    --teams-border: #edebe9;
+    --teams-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    --teams-radius: 4px;
+    --teams-avatar-bg: #e1dfdd;
+
+    /* Status Colors */
+    --status-available: #62b100;
+    --status-busy: #c4314b;
+    --status-away: #fdb913;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body {
+    background-color: var(--teams-bg-light);
+    color: var(--teams-text-black);
+    height: 100vh;
+    overflow: hidden;
+}
+
+.teams-btn {
+    background-color: var(--teams-primary);
+    color: white;
+    border: none;
+    border-radius: var(--teams-radius);
+    padding: 8px 16px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.teams-btn:hover {
+    background-color: var(--teams-primary-hover);
+}
+
+.teams-card {
+    background: white;
+    border: 1px solid var(--teams-border);
+    border-radius: var(--teams-radius);
+    box-shadow: var(--teams-shadow);
+}

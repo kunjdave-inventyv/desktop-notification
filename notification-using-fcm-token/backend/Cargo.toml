@@ -1,0 +1,26 @@
+[package]
+name = "backend"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+# Web framework
+axum = { version = "0.7", features = ["json"] }
+tokio = { version = "1", features = ["full"] }
+tower-http = { version = "0.5", features = ["cors"] }
+
+# HTTP client (for FCM + Google OAuth2 calls)
+reqwest = { version = "0.12", features = ["json"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# RSA signing for Google JWT / ADC
+rsa = { version = "0.9", features = ["sha2"] }
+pkcs8 = { version = "0.10", features = ["pem"] }
+rand = "0.8"
+base64 = "0.22"
+
+# .env support
+dotenvy = "0.15"

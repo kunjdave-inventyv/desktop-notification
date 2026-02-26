@@ -1,0 +1,81 @@
+@if (chatService.currentChatUser()) {
+  <div class="chat-window-container">
+    <div class="chat-header-teams">
+      <div class="header-left">
+        <div class="user-avatar-small">{{chatService.currentChatUser()![0]}}</div>
+        <div class="header-user-info">
+          <span class="header-name">{{chatService.currentChatUser()}}</span>
+          <span class="header-status-text">Available</span>
+        </div>
+      </div>
+      <div class="header-right">
+        <button class="icon-btn-rounded" (click)="makeCall()" title="Audio Call">
+          <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"></path></svg>
+        </button>
+        <button class="icon-btn-rounded" title="Video Call">
+          <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"></path></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="chat-message-list" #messageList>
+      @for (msg of chatService.chatHistory(); track msg.id || msg.timestamp) {
+        @if (msg.type === 'call') {
+          <div class="system-record-wrapper">
+            <div class="system-record" [class.error]="msg.callStatus === 'missed' || msg.callStatus === 'rejected'">
+              <div class="record-icon">
+                <svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"></path></svg>
+              </div>
+              <span class="record-text">{{msg.text}}</span>
+              <span class="record-time">{{msg.timestamp | date:'shortTime'}}</span>
+            </div>
+          </div>
+        } @else {
+          <div class="msg-row" [class.me]="msg.from === chatService.currentUser()">
+            @if (msg.from !== chatService.currentUser()) {
+              <div class="user-avatar-tiny">{{msg.from[0]}}</div>
+            }
+            <div class="msg-card">
+              @if (msg.from !== chatService.currentUser()) {
+                <div class="msg-header">
+                  <span class="msg-author">{{msg.from}}</span>
+                </div>
+              }
+              <div class="msg-body">
+                <p>{{msg.text}}</p>
+              </div>
+              <div class="msg-footer">
+                <span class="msg-time">{{msg.timestamp | date:'shortTime'}}</span>
+              </div>
+            </div>
+          </div>
+        }
+      }
+    </div>
+
+    <div class="chat-input-teams">
+      <div class="input-container">
+        <textarea 
+          rows="1"
+          [(ngModel)]="messageText" 
+          (keydown.enter)="$event.preventDefault(); sendMessage()"
+          (input)="onKeyPress()"
+          placeholder="Type a new message"
+        ></textarea>
+        <div class="input-actions">
+          <button class="send-btn" (click)="sendMessage()" [disabled]="!messageText.trim()">
+            <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+} @else {
+  <div class="teams-empty-state">
+    <div class="empty-content">
+      <div class="empty-icon">💬</div>
+      <h2>Select a chat to get started</h2>
+      <p>Communicate with your team in real-time.</p>
+    </div>
+  </div>
+}

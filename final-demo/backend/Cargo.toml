@@ -1,0 +1,31 @@
+[package]
+name = "backend"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+# Socket.IO server
+socketioxide = { version = "0.14.1", features = ["state"] }
+
+# HTTP server (socketioxide integrates with axum/tower)
+axum        = "0.7"
+tower       = "0.4"
+tower-http  = { version = "0.5", features = ["cors"] }
+
+# Async runtime
+tokio       = { version = "1", features = ["full"] }
+futures-util = "0.3"
+
+# Serialization
+serde       = { version = "1", features = ["derive"] }
+serde_json  = "1"
+
+# GCP / FCM
+gcp_auth    = "0.12"
+reqwest     = { version = "0.12", features = ["json"] }
+
+# Utilities
+uuid        = { version = "1", features = ["v4"] }
+dotenvy     = "0.15"
+tracing     = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

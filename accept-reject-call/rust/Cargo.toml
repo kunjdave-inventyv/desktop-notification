@@ -23,3 +23,4 @@ gcp_auth        = "0.12"
 
 # Environment variable loading
 dotenvy         = "0.15"
+uuid = { version = "1", features = ["v4"] }
