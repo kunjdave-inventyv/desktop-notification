@@ -22,6 +22,7 @@ pub async fn on_reject(
     }
 
     let mut calls = state.calls.write().await;
+    // Validate: call must exist, belong to this caller, and still be ringing
     let valid = calls.get(&from)
         .map(|s| s.caller == to && s.status == CallStatus::Ringing)
         .unwrap_or(false);
@@ -37,7 +38,7 @@ pub async fn on_reject(
 
     let users = state.users.read().await;
 
-    // Notify the originating caller tab
+    // Notify only the specific caller tab that originated the call
     if let Some(cs) = users.get(&to) {
         for sid in &cs.socket_ids {
             if *sid == caller_socket_id {

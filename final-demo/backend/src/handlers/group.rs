@@ -1,4 +1,4 @@
-// src/handlers/group.rs
+// src/handlers/group.rs — Group CRUD: create, add member, remove member.
 
 use socketioxide::extract::{Data, SocketRef, State};
 use tracing::info;
@@ -28,11 +28,13 @@ pub async fn on_create_group(
         return;
     }
 
+    // Creator must be included in the member list
     if !members.contains(&created_by) {
         members.insert(0, created_by.clone());
     }
-    members.dedup();
+    members.dedup();// Remove any duplicate user_ids
 
+    // Validate that every listed member actually exists
     {
         let users = state.users.read().await;
         for m in &members {
@@ -52,6 +54,7 @@ pub async fn on_create_group(
         groups.insert(group_id.clone(), group);
     }
 
+    // Notify all members (including creator) about the new group
     broadcast_to_members(&socket, &state, &members, event::GROUP_CREATED, &payload).await;
 
     info!("[G+] Group '{}' ({}) created by '{}'", name, group_id, created_by);
@@ -89,6 +92,7 @@ pub async fn on_add_group_member(
         GroupPayload::from(&*group)
     };
 
+    // Broadcast the updated member list to all current members (including the new one)
     let members = updated_payload.members.clone();
     broadcast_to_members(&socket, &state, &members, event::GROUP_UPDATED, &updated_payload).await;
 
@@ -118,6 +122,7 @@ pub async fn on_remove_group_member(
             emit_error(&socket, "You are not a member of this group");
             return;
         }
+        // Only creator can remove others; anyone can remove themselves
         if !self_leave && !is_creator {
             emit_error(&socket, "Only the group creator can remove others");
             return;
@@ -130,6 +135,7 @@ pub async fn on_remove_group_member(
         let old_members = group.members.clone();
         group.members.retain(|m| m != &user_id);
 
+        // If no members remain, delete the group entirely
         if group.members.is_empty() {
             let gid = group_id.clone();
             groups.remove(&gid);
@@ -142,9 +148,11 @@ pub async fn on_remove_group_member(
     let (old_members, maybe_payload) = result;
 
     match maybe_payload {
+        // Group still has members — broadcast updated member list
         Some(updated) => {
             broadcast_to_members(&socket, &state, &old_members, event::GROUP_UPDATED, &updated).await;
         }
+        // Group is now empty — tell everyone it was deleted
         None => {
             let del = GroupDeletedPayload { group_id: group_id.clone() };
             broadcast_to_members(&socket, &state, &old_members, event::GROUP_DELETED, &del).await;
@@ -165,7 +173,8 @@ async fn identity_registered(state: &AppState, user_id: &str) -> bool {
     state.users.read().await.contains_key(user_id)
 }
 
-/// Emit `event_name` with `payload` to all open tabs of every user in `members`.
+// Emits `event_name` with `payload` to every open tab of every user in `members`.
+// The initiating socket is not reachable via broadcast(), so it is handled separately.
 pub async fn broadcast_to_members<P: serde::Serialize>(
     socket: &SocketRef,
     state: &AppState,

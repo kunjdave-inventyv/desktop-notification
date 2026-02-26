@@ -1,0 +1,141 @@
+/* src/app/components/call-screen/call-screen.component.css */
+
+.call-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.72);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.25s ease;
+}
+
+@keyframes fadeIn { from { opacity:0 } to { opacity:1 } }
+
+.call-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 28px;
+  padding: 48px 40px;
+  min-width: 300px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  box-shadow: 0 40px 100px rgba(0,0,0,0.5);
+  animation: popIn 0.3s cubic-bezier(.16,1,.3,1);
+}
+
+@keyframes popIn {
+  from { transform: scale(0.88); opacity:0; }
+  to   { transform: scale(1);    opacity:1; }
+}
+
+.call-card.active {
+  border-color: var(--green);
+  box-shadow: 0 0 0 1px var(--green), 0 40px 100px rgba(0,0,0,0.5);
+}
+
+/* ── Avatar ── */
+.pulse-wrap {
+  position: relative;
+  width: 96px; height: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.call-avatar {
+  width: 80px; height: 80px;
+  background: var(--accent-dim);
+  color: var(--accent);
+  border-radius: 50%;
+  font-size: 2.2rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+  position: relative;
+}
+
+.pulse-ring {
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  opacity: 0;
+  animation: pulse 1.4s ease-out infinite;
+}
+
+@keyframes pulse {
+  0%   { transform: scale(0.95); opacity: 0.6; }
+  70%  { transform: scale(1.15); opacity: 0; }
+  100% { opacity: 0; }
+}
+
+.call-name {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-family: var(--font-display);
+}
+
+.call-status {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.participants {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  margin-top: 8px;
+}
+
+.participants span {
+  background: var(--accent-dim);
+  color: var(--accent);
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+/* ── Controls ── */
+.call-controls {
+  display: flex;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.ctrl {
+  width: 60px; height: 60px;
+  border-radius: 50%;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s, opacity 0.15s;
+}
+
+.ctrl:hover { transform: scale(1.1); }
+.ctrl:active { transform: scale(0.95); }
+
+.ctrl.accept {
+  background: var(--green);
+  color: #fff;
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+.ctrl.reject, .ctrl.end {
+  background: var(--red);
+  color: #fff;
+}

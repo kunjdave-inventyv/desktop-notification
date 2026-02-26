@@ -1,5 +1,3 @@
-// src/handlers/register.rs
-
 use socketioxide::extract::{Data, SocketRef, State};
 use tracing::info;
 
@@ -22,7 +20,7 @@ pub async fn on_register(
         return;
     }
 
-    // ── Uniqueness / re-login check ───────────────────────────────────────────
+    // Reject duplicate name if another live session already holds it
     {
         let map = state.users.read().await;
         if let Some(existing) = map.get(&user_id) {
@@ -34,7 +32,7 @@ pub async fn on_register(
         }
     }
 
-    // ── 1. Send full user list to the new tab ─────────────────────────────────
+    // 1. Send the new tab a snapshot of all other known users and their online status
     {
         let map = state.users.read().await;
         let users: Vec<UserEntry> = map.values()
@@ -44,7 +42,7 @@ pub async fn on_register(
         let _ = socket.emit(event::USER_LIST, &UserListPayload { users });
     }
 
-    // ── 2. Send all groups this user is already a member of ───────────────────
+    // 2. Replay any groups this user is already a member of so the tab is in sync
     {
         let groups = state.groups.read().await;
         for g in groups.values() {
@@ -54,18 +52,18 @@ pub async fn on_register(
         }
     }
 
-    // ── 3. Add socket to user's connection list ───────────────────────────────
+    // 3. Add this socket to the user's tab list (creates entry if first login)
     {
         let mut map = state.users.write().await;
         let entry = map.entry(user_id.clone()).or_insert_with(|| UserState::new(&user_id));
         entry.socket_ids.push(socket_id);
     }
 
-    // ── 4. Acknowledge ────────────────────────────────────────────────────────
+    // 4. Acknowledge registration to the connecting tab
     let _ = socket.emit(event::REGISTERED,
         &RegisteredPayload { user_id: user_id.clone(), socket_id: socket_id.to_string() });
 
-    // ── 5. Broadcast user_online to every other online tab ────────────────────
+    // 5. Notify every other online tab that this user just came online
     {
         let map = state.users.read().await;
         for (id, s) in map.iter() {

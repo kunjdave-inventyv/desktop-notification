@@ -9,27 +9,28 @@ use tokio::sync::RwLock;
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 pub const FCM_PROJECT_ID: &str = "notification-25684";
-pub const RING_TIMEOUT_SEC: u64 = 30;
+pub const RING_TIMEOUT_SEC: u64 = 30; // Seconds before unanswered call auto-cancels
 
 // ── User ──────────────────────────────────────────────────────────────────────
 
-/// A registered user. user_id IS the display name chosen at signup.
-/// Stays in the map permanently so offline users can still be called via FCM.
+/// A registered user. Persists in-memory even when offline so FCM tokens survive reconnects.
+/// user_id doubles as the display name chosen at signup.
 #[derive(Debug, Clone)]
 pub struct UserState {
     pub user_id:    String,
-    /// Socket IDs stored as Sid directly — avoids parse() on every get_socket call.
-    pub socket_ids: Vec<Sid>,
-    pub fcm_tokens: Vec<String>,
+    pub socket_ids: Vec<Sid>,       // One entry per open browser tab
+    pub fcm_tokens: Vec<String>,    // Push tokens for offline notification delivery
 }
 
 impl UserState {
     pub fn new(user_id: impl Into<String>) -> Self {
         Self { user_id: user_id.into(), socket_ids: Vec::new(), fcm_tokens: Vec::new() }
     }
+    /// User is online if they have at least one connected socket (tab).
     pub fn is_online(&self) -> bool { !self.socket_ids.is_empty() }
 }
 
+/// Shared, async-safe map of user_id → UserState.
 pub type UserMap = Arc<RwLock<HashMap<String, UserState>>>;
 
 // ── Group ─────────────────────────────────────────────────────────────────────
@@ -38,7 +39,7 @@ pub type UserMap = Arc<RwLock<HashMap<String, UserState>>>;
 pub struct Group {
     pub group_id:   String,
     pub name:       String,
-    pub members:    Vec<String>,
+    pub members:    Vec<String>,    // All member user_ids, including creator
     pub created_by: String,
 }
 
@@ -50,6 +51,7 @@ impl Group {
     }
 }
 
+/// Shared, async-safe map of group_id → Group.
 pub type GroupMap = Arc<RwLock<HashMap<String, Group>>>;
 
 // ── Call session ──────────────────────────────────────────────────────────────
@@ -58,7 +60,10 @@ pub type GroupMap = Arc<RwLock<HashMap<String, Group>>>;
 pub enum CallStatus { Ringing, Active }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum CallTarget { User(String), Group(String) }
+pub enum CallTarget {
+    User(String),   // 1-to-1 call
+    Group(String),  // Group call
+}
 
 impl CallTarget {
     pub fn id(&self) -> &str {
@@ -66,30 +71,32 @@ impl CallTarget {
     }
 }
 
-/// Active participants in a group call (user_ids who accepted).
+/// Accepted participants for group calls.
+/// Also holds sentinel strings like `"@total:N"` (invited count) and `"-user_id"` (reject markers).
 pub type GroupParticipants = Vec<String>;
 
 #[derive(Debug, Clone)]
 pub struct CallSession {
-    pub caller:           String,
-    pub target:           CallTarget,
+    pub caller:           String,           // User who initiated the call
+    pub target:           CallTarget,       // Who/what is being called
     pub status:           CallStatus,
-    pub caller_socket_id: Sid,
-    /// For group calls: members who have accepted so far.
-    pub participants:     GroupParticipants,
-    pub _timeout_handle:  Arc<tokio::task::AbortHandle>,
+    pub caller_socket_id: Sid,              // Originating tab of the caller
+    pub participants:     GroupParticipants,// Group call state; empty for 1-to-1
+    pub _timeout_handle:  Arc<tokio::task::AbortHandle>, // Aborts ring-timeout task on drop
 }
 
+/// Shared, async-safe map of callee_id/group_id → CallSession.
 pub type CallMap = Arc<RwLock<HashMap<String, CallSession>>>;
 
 // ── AppState ──────────────────────────────────────────────────────────────────
 
+/// Cloneable application state injected into every Socket.IO handler.
 #[derive(Clone)]
 pub struct AppState {
     pub users:  UserMap,
     pub groups: GroupMap,
     pub calls:  CallMap,
-    pub auth:   Arc<dyn TokenProvider>,
+    pub auth:   Arc<dyn TokenProvider>, // GCP credential provider for FCM
     pub http:   reqwest::Client,
 }
 
@@ -100,17 +107,17 @@ pub struct RegisterPayload      { pub user_id: String }
 #[derive(Debug, Deserialize)]
 pub struct StoreFcmTokenPayload { pub user_id: String, pub token: String }
 
-// 1-to-1
+// 1-to-1 call events
 #[derive(Debug, Deserialize)]
 pub struct CallPayload    { pub from: String, pub to: String }
 #[derive(Debug, Deserialize)]
-pub struct CancelPayload  { pub from: String, pub to: String }
+pub struct CancelPayload  { pub from: String, pub to: String } // Caller cancels ringing
 #[derive(Debug, Deserialize)]
-pub struct AcceptPayload  { pub from: String, pub to: String }
+pub struct AcceptPayload  { pub from: String, pub to: String } // from=callee, to=caller
 #[derive(Debug, Deserialize)]
-pub struct RejectPayload  { pub from: String, pub to: String }
+pub struct RejectPayload  { pub from: String, pub to: String } // from=callee, to=caller
 #[derive(Debug, Deserialize)]
-pub struct CutCallPayload { pub from: String, pub to: String }
+pub struct CutCallPayload { pub from: String, pub to: String } // Either side hangs up
 
 // Group management
 #[derive(Debug, Deserialize)]
@@ -132,7 +139,7 @@ pub struct RemoveGroupMemberPayload {
     pub user_id:    String,
 }
 
-// Group calls
+// Group call events
 #[derive(Debug, Deserialize)]
 pub struct GroupCallPayload   { pub from: String, pub group_id: String }
 #[derive(Debug, Deserialize)]
@@ -152,7 +159,7 @@ pub mod event {
     pub const USER_OFFLINE:         &str = "user_offline";
     pub const REGISTER_ERROR:       &str = "register_error";
 
-    // 1-to-1 call
+    // 1-to-1 call lifecycle
     pub const INCOMING_CALL:        &str = "incoming_call";
     pub const CALL_ACCEPTED:        &str = "call_accepted";
     pub const CALL_REJECTED:        &str = "call_rejected";
@@ -164,7 +171,7 @@ pub mod event {
     pub const GROUP_UPDATED:        &str = "group_updated";
     pub const GROUP_DELETED:        &str = "group_deleted";
 
-    // Group call
+    // Group call lifecycle
     pub const GROUP_INCOMING_CALL:  &str = "group_incoming_call";
     pub const GROUP_MEMBER_JOINED:  &str = "group_member_joined";
     pub const GROUP_MEMBER_LEFT:    &str = "group_member_left";
@@ -188,7 +195,7 @@ pub struct UserOnlinePayload { pub user_id: String }
 #[derive(Debug, Serialize)]
 pub struct UserOfflinePayload{ pub user_id: String }
 
-// 1-to-1
+// 1-to-1 call responses
 #[derive(Debug, Serialize)]
 pub struct IncomingCallPayload  { pub from: String }
 #[derive(Debug, Serialize)]
@@ -200,7 +207,7 @@ pub struct CallCancelledPayload { pub by: String }
 #[derive(Debug, Serialize)]
 pub struct CallEndedPayload     { pub reason: String }
 
-// Group management
+// Group management responses
 #[derive(Debug, Serialize, Clone)]
 pub struct GroupPayload {
     pub group_id:   String,
@@ -217,7 +224,7 @@ impl From<&Group> for GroupPayload {
 #[derive(Debug, Serialize)]
 pub struct GroupDeletedPayload { pub group_id: String }
 
-// Group call
+// Group call responses
 #[derive(Debug, Serialize)]
 pub struct GroupIncomingCallPayload {
     pub from:       String,

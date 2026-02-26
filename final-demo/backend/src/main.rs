@@ -25,7 +25,6 @@ use handlers::{
 };
 use types::AppState;
 
-
 const EV_REGISTER:            &str = "register";
 const EV_STORE_FCM:           &str = "store_fcm_token";
 const EV_CALL:                &str = "call";
@@ -81,6 +80,9 @@ async fn main() {
         .build_layer();
 
     io.ns("/", |socket: SocketRef| {
+        
+        tracing::info!(socket_id = %socket.id, "New socket connected");
+        
         socket.on(EV_REGISTER,  on_register);
         socket.on(EV_STORE_FCM, on_store_fcm_token);
 
@@ -102,7 +104,7 @@ async fn main() {
         socket.on_disconnect(on_disconnect);
     });
 
-    // ── HTTP ──────────────────────────────────────────────────────────────────
+    // ── HTTP ────────────────────────────────────────────────────────────────── 
     let cors = CorsLayer::new()
         .allow_origin(Any)
         .allow_methods([Method::GET, Method::POST])
@@ -122,6 +124,5 @@ async fn ping_handler() -> impl IntoResponse {
     Json(serde_json::json!({ "message": "pong" }))
 }
 
-// FCM token management (store multiple tokens per user, avoid duplicates, etc.)
-// conflict of calls and groups (e.g. if a user is in a call and gets added to a group, or vice versa) is not handled in this demo, but could be an interesting extension.
+// 
 // if user gets disconnected (e.g. network issues) without proper "cut call", the server currently has no way to detect that, so the call would remain active until the user tries to register again or the server restarts. so if user is on the call and disconnect then it should send cut call 

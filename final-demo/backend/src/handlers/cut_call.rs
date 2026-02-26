@@ -23,7 +23,7 @@ pub async fn on_cut_call(
 
     let mut calls = state.calls.write().await;
 
-    // Case 1: `from` is callee (call keyed by from)
+    // Case 1: Cut by callee 
     if let Some(s) = calls.get(&from) {
         if s.caller == to && s.status == CallStatus::Active
             && matches!(&s.target, CallTarget::User(_)) {
@@ -35,7 +35,7 @@ pub async fn on_cut_call(
         }
     }
 
-    // Case 2: `from` is caller (call keyed by to)
+    // Case 2: Cut by caller 
     if let Some(s) = calls.get(&to) {
         if s.caller == from && s.status == CallStatus::Active
             && matches!(&s.target, CallTarget::User(_)) {
@@ -50,6 +50,8 @@ pub async fn on_cut_call(
     emit_error(&socket, "No active call to cut");
 }
 
+// Sends CALL_ENDED to all tabs of both participants.
+// The initiating socket receives the event directly; all others go via broadcast.
 async fn notify_both_sides(
     socket: &SocketRef,
     state: &AppState,
@@ -59,6 +61,7 @@ async fn notify_both_sides(
 ) {
     let users = state.users.read().await;
 
+    // Determine which side the initiator belongs to
     let initiator_uid = get_user_for_socket(state, initiator_sid).await;
     let (other_id, same_id) = if initiator_uid.as_deref() == Some(callee_id) {
         (caller_id, callee_id)
@@ -66,7 +69,7 @@ async fn notify_both_sides(
         (callee_id, caller_id)
     };
 
-    // Notify the other side (all tabs)
+    // Notify All tabs call ended
     if let Some(s) = users.get(other_id) {
         for sid in &s.socket_ids {
             if let Some(peer) = socket.broadcast().get_socket(*sid) {
@@ -76,7 +79,7 @@ async fn notify_both_sides(
         }
     }
 
-    // Notify same-side other tabs
+    // Sync other tabs of the same user (they should also show call-ended)
     if let Some(s) = users.get(same_id) {
         for sid in &s.socket_ids {
             if *sid != initiator_sid {
@@ -88,11 +91,12 @@ async fn notify_both_sides(
         }
     }
 
-    // Acknowledge initiating socket
+    // Acknowledge the initiating tab directly
     let _ = socket.emit(event::CALL_ENDED,
         &CallEndedPayload { reason: "Call ended".into() });
 }
 
+// Reverse-lookup: find the user_id that owns a given socket_id.
 async fn get_user_for_socket(state: &AppState, socket_id: Sid) -> Option<String> {
     let map = state.users.read().await;
     for (uid, s) in map.iter() {

@@ -1,4 +1,4 @@
-// src/handlers/group_call.rs
+// src/handlers/group_call.rs — Group call lifecycle: start, accept, reject, leave/end.
 
 use socketioxide::extract::{Data, SocketRef, State};
 use socketioxide::socket::Sid;
@@ -94,8 +94,6 @@ pub async fn on_group_call(
     }
     drop(users_snap);
 
-    // Encode the invited member count as a sentinel in participants so
-    // on_group_reject can know when everyone has responded without a new field.
     let non_caller_count = other_members.len();
 
     let timeout_handle = spawn_group_ring_timeout(
@@ -113,6 +111,11 @@ pub async fn on_group_call(
         target:           CallTarget::Group(group_id.clone()),
         status:           CallStatus::Ringing,
         caller_socket_id: socket_id,
+        // participants layout:
+        //   caller uid       — real acceptor (the initiator)
+        //   "@total:N"       — invited count sentinel for reject tracking
+        //   "-uid"           — reject markers (added by on_group_reject)
+        //   other uids       — accepted members (added by on_group_accept)
         participants:     vec![from.clone(), format!("@total:{non_caller_count}")],
         _timeout_handle:  timeout_handle,
     });
@@ -147,7 +150,8 @@ pub async fn on_group_accept(
     if session.participants.contains(&from) {
         return; // duplicate — ignore
     }
-    // Remove any prior reject marker for this user (edge case: they somehow re-accepted)
+
+    // Remove stale reject marker if present
     let reject_marker = format!("-{from}");
     session.participants.retain(|p| p != &reject_marker);
 
@@ -156,28 +160,48 @@ pub async fn on_group_accept(
         session.status = CallStatus::Active;
     }
 
-    // Real participants for broadcast (strip sentinels)
-    let real_participants: Vec<String> = session.participants.iter()
-        .filter(|p| !p.starts_with('-') && !p.starts_with('@'))
+    // Members already in the call before this user joined
+    let existing_participants: Vec<String> = session.participants.iter()
+        .filter(|p| {
+            let s = p.as_str();
+            !s.starts_with('-') && !s.starts_with('@') && s != from.as_str()
+        })
         .cloned()
         .collect();
+
     drop(calls);
 
-    let joined = GroupMemberJoinedPayload { group_id: group_id.clone(), user_id: from.clone() };
     let users = state.users.read().await;
-    for uid in &real_participants {
-        if uid == &from { continue; }
+
+    // 1. Tell all EXISTING participants that the new member joined
+    let joined_new = GroupMemberJoinedPayload {
+        group_id: group_id.clone(),
+        user_id:  from.clone(),
+    };
+    for uid in &existing_participants {
         if let Some(ms) = users.get(uid) {
             for sid in &ms.socket_ids {
                 if let Some(peer) = socket.broadcast().get_socket(*sid) {
-                    let _ = peer.emit(event::GROUP_MEMBER_JOINED, &joined);
+                    let _ = peer.emit(event::GROUP_MEMBER_JOINED, &joined_new);
                 }
             }
         }
     }
-    let _ = socket.emit(event::GROUP_MEMBER_JOINED, &joined);
 
-    // Dismiss ringing on all OTHER tabs of the acceptor
+    // 2. Tell the NEW joiner about every EXISTING participant so their
+    //    participant list is fully populated from the start
+    for uid in &existing_participants {
+        let _ = socket.emit(event::GROUP_MEMBER_JOINED,
+            &GroupMemberJoinedPayload {
+                group_id: group_id.clone(),
+                user_id:  uid.clone(),
+            });
+    }
+
+    // 3. Confirm to the new joiner that they themselves joined
+    let _ = socket.emit(event::GROUP_MEMBER_JOINED, &joined_new);
+
+    // 4. Dismiss ringing on all OTHER tabs of the acceptor
     if let Some(ms) = users.get(&from) {
         for sid in &ms.socket_ids {
             if *sid != socket_id {
@@ -192,7 +216,7 @@ pub async fn on_group_accept(
         }
     }
 
-    info!("[G✓] '{from}' joined group call '{group_id}'");
+    info!("[G✓] '{from}' joined group call '{group_id}' (was with: {:?})", existing_participants);
 }
 
 // ── group_reject ──────────────────────────────────────────────────────────────
@@ -210,7 +234,6 @@ pub async fn on_group_reject(
         return;
     }
 
-    // Bail early if call is gone
     {
         let calls_r = state.calls.read().await;
         if calls_r.get(&group_id).is_none() { return; }
@@ -234,16 +257,16 @@ pub async fn on_group_reject(
         }
     }
 
-    // Acknowledge rejection to the rejecting tab immediately
+    // Acknowledge rejection to this tab
     let _ = socket.emit(event::GROUP_CALL_ENDED,
         &GroupCallEndedPayload { group_id: group_id.clone(), reason: "You declined".into() });
 
+    // Record rejection and check if all invitees have now responded
     let all_declined = {
         let mut calls_w = state.calls.write().await;
         let Some(session) = calls_w.get_mut(&group_id) else { return; };
 
         let reject_marker = format!("-{from}");
-        
         if !session.participants.contains(&reject_marker)
             && !session.participants.contains(&from)
         {
@@ -252,13 +275,11 @@ pub async fn on_group_reject(
 
         let caller = session.caller.clone();
 
-        // How many non-caller members were originally invited?
         let total_invited: usize = session.participants.iter()
             .find(|p| p.starts_with("@total:"))
             .and_then(|s| s["@total:".len()..].parse().ok())
             .unwrap_or(0);
 
-        // Count real (non-caller) acceptors
         let acceptors: usize = session.participants.iter()
             .filter(|p| {
                 let s = p.as_str();
@@ -266,18 +287,36 @@ pub async fn on_group_reject(
             })
             .count();
 
-        // Count rejectors
         let rejectors: usize = session.participants.iter()
             .filter(|p| p.starts_with('-'))
             .count();
 
-        let total_responded = acceptors + rejectors;
-
-        // End the call only when every invitee has responded AND no one accepted
-        acceptors == 0 && total_responded >= total_invited
+        // Only end when ALL invitees responded AND nobody accepted
+        acceptors == 0 && (acceptors + rejectors) >= total_invited
     };
 
+    {
+        let calls_r = state.calls.read().await;
+        if let Some(session) = calls_r.get(&group_id) {
+            let caller = session.caller.clone();
+            let users = state.users.read().await;
+            if let Some(ms) = users.get(&caller) {
+                for sid in &ms.socket_ids {
+                    if let Some(peer) = socket.broadcast().get_socket(*sid) {
+                        let _ = peer.emit(event::GROUP_MEMBER_LEFT,
+                            &GroupMemberLeftPayload {
+                                group_id: group_id.clone(),
+                                user_id:  from.clone(),
+                            });
+                    }
+                }
+            }
+        }
+    }
+    
     if all_declined {
+        // Pass the group_id so end_group_call_fully can notify ALL group members
+        // (including those still ringing who never responded) to dismiss their UI
         end_group_call_fully(&socket, &state, &group_id, "All members declined").await;
     }
 
@@ -302,13 +341,15 @@ pub async fn on_group_cut(
     let (is_caller, remaining) = {
         let mut calls = state.calls.write().await;
         let Some(session) = calls.get_mut(&group_id) else {
-            emit_error(&socket, "No active group call");
+            let _ = socket.emit(event::GROUP_CALL_ENDED,
+                &GroupCallEndedPayload {
+                    group_id: group_id.clone(),
+                    reason: "Call already ended".into(),
+                });
             return;
         };
         let is_caller = session.caller == from;
-        // Remove this user (real acceptor uid only)
         session.participants.retain(|p| p != &from);
-        // Real remaining participants (strip sentinels/reject-markers)
         let remaining: Vec<String> = session.participants.iter()
             .filter(|p| !p.starts_with('-') && !p.starts_with('@'))
             .cloned()
@@ -320,23 +361,31 @@ pub async fn on_group_cut(
         (is_caller, remaining)
     };
 
-    let users = state.users.read().await;
+    let users  = state.users.read().await;
     let groups = state.groups.read().await;
+
+    // All group members — needed to notify pending ringers when call fully ends
     let all_members: Vec<String> = groups.get(&group_id)
         .map(|g| g.members.clone())
         .unwrap_or_default();
+    drop(groups);
 
     if is_caller || remaining.is_empty() {
-        drop(groups);
+        // Call is fully over — notify EVERY group member (acceptors + still-ringing)
         for member_id in &all_members {
             if member_id == &from { continue; }
             if let Some(ms) = users.get(member_id) {
                 for sid in &ms.socket_ids {
                     if let Some(peer) = socket.broadcast().get_socket(*sid) {
+                        let reason = if is_caller {
+                            format!("'{from}' ended the call")
+                        } else {
+                            "Everyone left the call".to_string()
+                        };
                         let _ = peer.emit(event::GROUP_CALL_ENDED,
                             &GroupCallEndedPayload {
                                 group_id: group_id.clone(),
-                                reason: format!("'{from}' ended the call"),
+                                reason,
                             });
                     }
                 }
@@ -345,8 +394,9 @@ pub async fn on_group_cut(
         let _ = socket.emit(event::GROUP_CALL_ENDED,
             &GroupCallEndedPayload { group_id: group_id.clone(), reason: "Call ended".into() });
         info!("[G☎] '{from}' ended group call '{group_id}'");
+
     } else {
-        drop(groups);
+        // Partial leave — only notify active participants
         let left = GroupMemberLeftPayload { group_id: group_id.clone(), user_id: from.clone() };
         for uid in &remaining {
             if let Some(ms) = users.get(uid) {
@@ -382,12 +432,7 @@ fn spawn_group_ring_timeout(
                 calls_w.remove(&group_id);
                 drop(calls_w);
 
-                let _ = caller_socket.emit(event::GROUP_CALL_ENDED,
-                    &GroupCallEndedPayload {
-                        group_id: group_id.clone(),
-                        reason: "No answer".into(),
-                    });
-
+                // Notify ALL members (including pending ringers, not just acceptors)
                 let users_r = users.read().await;
                 for member_id in &members {
                     if member_id == &caller_id { continue; }
@@ -404,6 +449,12 @@ fn spawn_group_ring_timeout(
                     }
                 }
 
+                let _ = caller_socket.emit(event::GROUP_CALL_ENDED,
+                    &GroupCallEndedPayload {
+                        group_id: group_id.clone(),
+                        reason: "No answer".into(),
+                    });
+
                 warn!("[⏱] Group call '{group_id}' timed out");
             }
         }
@@ -411,7 +462,12 @@ fn spawn_group_ring_timeout(
     Arc::new(task.abort_handle())
 }
 
-// ── Shared helper to forcibly terminate a group call ─────────────────────────
+// ── Shared helper: terminate a group call and notify ALL group members ────────
+//
+// KEY FIX: previously this only notified `real_participants` (acceptors).
+// That left members who were still ringing (neither accepted nor rejected)
+// stuck with a live notification and ringing UI after the call ended.
+// Now it fetches the full group member list and notifies everyone.
 
 async fn end_group_call_fully(
     socket: &SocketRef,
@@ -421,32 +477,54 @@ async fn end_group_call_fully(
 ) {
     let mut calls = state.calls.write().await;
     let Some(session) = calls.remove(group_id) else { return; };
-
-    // Strip sentinels — only notify real participants (acceptors including caller)
-    let real_participants: Vec<String> = session.participants.iter()
-        .filter(|p| !p.starts_with('-') && !p.starts_with('@'))
-        .cloned()
-        .collect();
+    let caller = session.caller.clone();
     drop(calls);
 
-    let users = state.users.read().await;
+    // Fetch ALL group members — this covers:
+    //   • acceptors (already in the call)
+    //   • pending ringers (invited but haven't responded yet)
+    //   • rejecters (already got their own dismiss, but harmless to re-notify)
+    let all_members: Vec<String> = {
+        let groups = state.groups.read().await;
+        groups.get(group_id)
+            .map(|g| g.members.clone())
+            .unwrap_or_default()
+    };
+
+    let users  = state.users.read().await;
     let my_sid = socket.id;
-    for uid in &real_participants {
+
+    for uid in &all_members {
+        if uid == &caller { continue; } // caller handled separately below
         if let Some(ms) = users.get(uid) {
             for sid in &ms.socket_ids {
                 if let Some(peer) = socket.broadcast().get_socket(*sid) {
                     let _ = peer.emit(event::GROUP_CALL_ENDED,
                         &GroupCallEndedPayload {
                             group_id: group_id.to_string(),
-                            reason: reason.to_owned(),
-                        });
-                } else if *sid == my_sid {
-                    let _ = socket.emit(event::GROUP_CALL_ENDED,
-                        &GroupCallEndedPayload {
-                            group_id: group_id.to_string(),
-                            reason: reason.to_owned(),
+                            reason:   reason.to_owned(),
                         });
                 }
+            }
+        }
+    }
+
+    // Notify the caller (the socket that triggered this, e.g. last rejecter's socket
+    // uses broadcast which excludes itself, so we use the caller's stored socket_ids)
+    if let Some(ms) = users.get(&caller) {
+        for sid in &ms.socket_ids {
+            if let Some(peer) = socket.broadcast().get_socket(*sid) {
+                let _ = peer.emit(event::GROUP_CALL_ENDED,
+                    &GroupCallEndedPayload {
+                        group_id: group_id.to_string(),
+                        reason:   reason.to_owned(),
+                    });
+            } else if *sid == my_sid {
+                let _ = socket.emit(event::GROUP_CALL_ENDED,
+                    &GroupCallEndedPayload {
+                        group_id: group_id.to_string(),
+                        reason:   reason.to_owned(),
+                    });
             }
         }
     }

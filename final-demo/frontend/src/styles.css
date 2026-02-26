@@ -1,0 +1,49 @@
+/* src/styles.css — Global design tokens */
+
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@400;500;600&display=swap');
+
+:root {
+  /* Palette — dark theme */
+  --bg:           #0d0f14;
+  --surface:      #141720;
+  --border:       #252b38;
+  --hover:        #1a1f2c;
+  --input-bg:     #0d0f14;
+
+  /* Text */
+  --text-primary:   #eef0f6;
+  --text-secondary: #a8b0c2;
+  --text-muted:     #5a6278;
+
+  /* Accent — electric indigo */
+  --accent:       #5b7fff;
+  --accent-dim:   rgba(91,127,255,0.12);
+
+  /* Colors */
+  --green:        #1dba7f;
+  --red:          #ff4c4c;
+  --purple:       #b06aff;
+  --purple-dim:   rgba(176,106,255,0.12);
+
+  /* Fonts */
+  --font-display: 'Syne', sans-serif;
+  --font-body:    'DM Sans', sans-serif;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }

@@ -1,0 +1,47 @@
+<!-- src/app/components/call-screen/call-screen.component.html -->
+<div class="call-overlay" *ngIf="isVisible" [class.ringing]="isRinging">
+  <div class="call-card" [class.active]="isActive">
+
+    <!-- Avatar / pulse ring -->
+    <div class="pulse-wrap">
+      <div class="pulse-ring" *ngIf="isRinging || isCalling"></div>
+      <div class="call-avatar">
+        {{ displayName ? displayName[0].toUpperCase() : '?' }}
+      </div>
+    </div>
+
+    <div class="call-name">{{ displayName }}</div>
+
+    <!-- State label -->
+    <div class="call-status">
+      <span *ngIf="isCalling">Calling…</span>
+      <span *ngIf="isRinging && call?.direction === 'incoming'">Incoming call</span>
+      <span *ngIf="isActive">{{ elapsed }}</span>
+      <!-- Group participants -->
+      <div *ngIf="isActive && call?.type === 'group' && call?.participants?.length" class="participants">
+        <span *ngFor="let p of call?.participants">{{ p }}</span>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="call-controls">
+
+      <!-- Incoming: Accept + Reject -->
+      <ng-container *ngIf="isRinging">
+        <button class="ctrl accept" (click)="accept()" title="Accept">✓</button>
+        <button class="ctrl reject" (click)="reject()" title="Reject">✕</button>
+      </ng-container>
+
+      <!-- Outgoing ringing: Cancel -->
+      <ng-container *ngIf="isCalling">
+        <button class="ctrl reject" (click)="cancel()" title="Cancel">✕</button>
+      </ng-container>
+
+      <!-- Active call: End -->
+      <ng-container *ngIf="isActive">
+        <button class="ctrl end" (click)="cutCall()" title="End call">📵</button>
+      </ng-container>
+
+    </div>
+  </div>
+</div>

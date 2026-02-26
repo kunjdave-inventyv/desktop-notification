@@ -1,0 +1,37 @@
+<!-- src/app/components/user-list/user-list.component.html -->
+<div class="user-list-panel">
+  <div class="panel-header">
+    <span class="panel-title">People</span>
+    <span class="count">{{ (state.users$ | async)?.length ?? 0 }}</span>
+  </div>
+
+  <div class="user-list">
+    <ng-container *ngIf="(state.users$ | async) as users">
+      <div *ngIf="users.length === 0" class="empty-state">
+        No other users yet
+      </div>
+
+      <div
+        *ngFor="let user of users; trackBy: trackUser"
+        class="user-item"
+        [class.offline]="!user.is_online"
+      >
+        <div class="avatar">{{ user.user_id[0].toUpperCase() }}</div>
+        <div class="user-info">
+          <span class="user-name">{{ user.user_id }}</span>
+          <span class="status-dot" [class.online]="user.is_online">
+            {{ user.is_online ? 'online' : 'offline' }}
+          </span>
+        </div>
+        <button
+          class="btn-call"
+          (click)="call(user.user_id)"
+          [disabled]="!callIdle"
+          title="Call {{ user.user_id }}"
+        >
+          ☎
+        </button>
+      </div>
+    </ng-container>
+  </div>
+</div>

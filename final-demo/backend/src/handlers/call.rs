@@ -26,7 +26,7 @@ pub async fn on_call(
         emit_error(&socket, "Cannot call yourself");
         return;
     }
-
+    // Ensure the socket actually belongs to the claimed user_id
     if !identity_matches(&state, socket_id, &from).await {
         emit_error(&socket, "Identity mismatch");
         return;
@@ -40,14 +40,16 @@ pub async fn on_call(
         return;
     };
 
+    // If a call to this callee already exists from the same caller
     if let Some(existing) = calls.get(&to) {
         if existing.caller != from {
             emit_error(&socket, &format!("'{to}' is busy on another call"));
             return;
         }
-        return; // idempotent retry
+        return; 
     }
 
+    // Prevent the caller from placing a new call while already in an active one
     let caller_busy = calls.values().any(|s| {
         (s.caller == from || s.target.id() == from.as_str()) && s.status == CallStatus::Active
     });
@@ -56,12 +58,14 @@ pub async fn on_call(
         return;
     }
 
+    // Deliver "incoming_call" to every open tab of the callee
     for sid in &callee_state.socket_ids {
         if let Some(peer) = socket.broadcast().get_socket(*sid) {
             let _ = peer.emit(event::INCOMING_CALL, &IncomingCallPayload { from: from.clone() });
         }
     }
 
+    // If callee is offline but has FCM tokens, send push notifications in a background task
     let fcm_tokens = callee_state.fcm_tokens.clone();
     if !fcm_tokens.is_empty() {
         let (f, t2, http) = (from.clone(), to.clone(), state.http.clone());
@@ -79,6 +83,7 @@ pub async fn on_call(
     drop(calls);
     drop(users);
 
+    // Start a background task that auto-cancels the call after RING_TIMEOUT_SEC
     let timeout_handle = spawn_ring_timeout(
         from.clone(), to.clone(),
         socket.clone(),
@@ -86,6 +91,7 @@ pub async fn on_call(
         state.users.clone(),
     );
 
+    // Record the call session (keyed by callee id)
     let mut calls = state.calls.write().await;
     calls.insert(to.clone(), CallSession {
         caller:           from.clone(),
@@ -93,7 +99,7 @@ pub async fn on_call(
         status:           CallStatus::Ringing,
         caller_socket_id: socket_id,
         participants:     Vec::new(),
-        _timeout_handle:  timeout_handle,
+        _timeout_handle:  timeout_handle, // Dropping this aborts the timeout task
     });
 
     info!("[~] Ringing: {from} → {to}");
@@ -101,6 +107,8 @@ pub async fn on_call(
 
 // ── Ring-timeout ──────────────────────────────────────────────────────────────
 
+// Spawns a task that fires after RING_TIMEOUT_SEC.
+// If the call is still Ringing at that point, it is removed and both sides are notified.
 fn spawn_ring_timeout(
     caller_id: String,
     callee_id: String,
@@ -117,9 +125,11 @@ fn spawn_ring_timeout(
                 calls_w.remove(&callee_id);
                 drop(calls_w);
 
+                // Tell caller the ring timed out
                 let _ = caller_socket.emit(event::CALL_ENDED,
                     &CallEndedPayload { reason: "No answer".into() });
-
+                
+                // Dismiss ringing UI on all callee tabs
                 let users_r = users.read().await;
                 if let Some(cs) = users_r.get(&callee_id) {
                     for sid in &cs.socket_ids {
@@ -143,6 +153,7 @@ fn emit_error(socket: &SocketRef, message: &str) {
     let _ = socket.emit(event::ERROR, &ErrorPayload { message: message.to_owned() });
 }
 
+// Returns true if the given socket_id is registered under user_id.
 pub async fn identity_matches(state: &AppState, socket_id: Sid, user_id: &str) -> bool {
     let map = state.users.read().await;
     map.get(user_id)

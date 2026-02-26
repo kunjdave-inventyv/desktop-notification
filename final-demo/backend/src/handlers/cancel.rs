@@ -18,6 +18,7 @@ pub async fn on_cancel(
     }
 
     let mut calls = state.calls.write().await;
+    // Only valid if the call is still Ringing and was placed by this caller
     let valid = calls.get(&to)
         .map(|s| s.caller == from && s.status == CallStatus::Ringing)
         .unwrap_or(false);
@@ -26,7 +27,8 @@ pub async fn on_cancel(
 
     calls.remove(&to);
     drop(calls);
-
+    
+    // Notify all callee tabs so they dismiss the incoming-call UI
     let users = state.users.read().await;
     if let Some(cs) = users.get(&to) {
         for sid in &cs.socket_ids {

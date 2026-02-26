@@ -31,6 +31,8 @@ pub async fn on_accept(
         emit_error(&socket, "Caller mismatch");
         return;
     }
+
+    // Guard against double-accept: call was already answered on another tab
     if session.status == CallStatus::Active {
         let _ = socket.emit(event::CALL_ENDED,
             &CallEndedPayload { reason: "Call accepted on another tab".into() });
@@ -43,7 +45,7 @@ pub async fn on_accept(
 
     let users = state.users.read().await;
 
-    // Notify the originating caller tab
+    // Notify all tabs of the caller that their call was accepted
     if let Some(cs) = users.get(&to) {
         for sid in &cs.socket_ids {
             if let Some(peer) = socket.broadcast().get_socket(*sid) {
@@ -52,7 +54,7 @@ pub async fn on_accept(
         }
     }
 
-    // Dismiss ringing on all other callee tabs
+    // Dismiss the ringing UI on all other callee tabs (they lost the race)
     if let Some(cs) = users.get(&from) {
         for sid in &cs.socket_ids {
             if *sid != socket_id {
@@ -64,7 +66,7 @@ pub async fn on_accept(
         }
     }
 
-    // Notify other caller tabs that call is ongoing
+    // Notify other caller tabs (not the one that placed the call) so they show "in call" state
     if let Some(cs) = users.get(&to) {
         for sid in &cs.socket_ids {
             if *sid != caller_socket_id {
