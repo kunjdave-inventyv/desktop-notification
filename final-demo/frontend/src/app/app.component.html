@@ -1,0 +1,43 @@
+<!-- src/app/app.component.html -->
+
+<!-- Register screen -->
+<app-register *ngIf="!loggedIn"></app-register>
+
+<!-- Main dashboard -->
+<div class="app-shell" *ngIf="loggedIn">
+
+  <!-- Topbar -->
+  <header class="topbar">
+    <div class="brand-row">
+      <span class="logo">☎</span>
+      <span class="app-name">CallDemo</span>
+    </div>
+    <div class="user-badge">
+      <span class="dot"></span>
+      {{ state.currentUserId$ | async }}
+    </div>
+  </header>
+
+  <!-- Content -->
+  <main class="main-content">
+
+    <!-- Left column: users + groups -->
+    <div class="left-col">
+      <app-user-list></app-user-list>
+      <app-group-manager></app-group-manager>
+    </div>
+
+    <!-- Right column: chat -->
+    <div class="right-col">
+      <app-chat></app-chat>
+    </div>
+
+  </main>
+
+</div>
+
+<!-- Call overlay (always present, hidden when idle) -->
+<app-call-screen></app-call-screen>
+
+<!-- Toast notifications -->
+<app-notification-bar></app-notification-bar>

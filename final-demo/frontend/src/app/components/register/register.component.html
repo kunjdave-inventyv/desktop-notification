@@ -1,0 +1,28 @@
+<!-- src/app/components/register/register.component.html -->
+<div class="register-wrap">
+  <div class="register-card">
+    <div class="brand">
+      <span class="brand-icon">☎</span>
+      <h1>CallDemo</h1>
+      <p class="brand-sub">Real-time calling over Socket.IO</p>
+    </div>
+
+    <div class="input-row">
+      <input
+        class="name-input"
+        type="text"
+        placeholder="Enter your name…"
+        [(ngModel)]="userId"
+        (keyup)="onKey($event)"
+        [disabled]="loading"
+        maxlength="32"
+        autofocus
+      />
+      <button class="btn-join" (click)="register()" [disabled]="loading || !userId.trim()">
+        <span *ngIf="!loading">Join</span>
+        <span *ngIf="loading" class="spinner"></span>
+      </button>
+    </div>
+    <p class="hint">Pick any name — no passwords needed</p>
+  </div>
+</div>

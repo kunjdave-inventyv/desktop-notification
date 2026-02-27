@@ -1,0 +1,262 @@
+<!-- src/app/components/chat/chat.component.html -->
+
+<div class="chat-shell">
+
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <!-- LEFT PANEL                                                             -->
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <aside class="sidebar">
+
+    <!-- Tab bar -->
+    <div class="tab-bar">
+      <button class="tab-btn" [class.active]="activeTab === 'conversations'" (click)="setTab('conversations')">
+        <span class="tab-icon">💬</span>
+        <span class="tab-label">Chats</span>
+        <span class="tab-badge" *ngIf="totalUnread > 0">{{ totalUnread }}</span>
+      </button>
+      <button class="tab-btn" [class.active]="activeTab === 'users'" (click)="setTab('users')">
+        <span class="tab-icon">👤</span>
+        <span class="tab-label">People</span>
+        <span class="online-dot-badge" *ngIf="onlineCount > 0">{{ onlineCount }}</span>
+      </button>
+      <button class="tab-btn" [class.active]="activeTab === 'groups'" (click)="setTab('groups')">
+        <span class="tab-icon">👥</span>
+        <span class="tab-label">Groups</span>
+      </button>
+    </div>
+
+    <!-- ── TAB: Conversations ── -->
+    <ng-container *ngIf="activeTab === 'conversations'">
+      <div class="conv-list">
+        <ng-container *ngIf="conversations.length; else noConvs">
+          <button
+            *ngFor="let conv of conversations; trackBy: trackByKey"
+            class="conv-item"
+            [class.active]="conv.key === activeKey"
+            (click)="selectConversation(conv.key)"
+          >
+            <div class="avatar" [class.group-avatar]="conv.type === 'group'">
+              {{ conv.type === 'group' ? '👥' : labelFor(conv).charAt(0).toUpperCase() }}
+            </div>
+            <div class="conv-info">
+              <div class="conv-name">{{ labelFor(conv) }}</div>
+              <div class="conv-preview">{{ lastMessage(conv) }}</div>
+            </div>
+            <span class="unread-badge" *ngIf="unreadCount(conv) > 0">
+              {{ unreadCount(conv) }}
+            </span>
+          </button>
+        </ng-container>
+        <ng-template #noConvs>
+          <div class="empty-panel">
+            <span class="empty-icon">💬</span>
+            <p>No conversations yet</p>
+            <span class="empty-hint">Go to People or Groups to start chatting</span>
+          </div>
+        </ng-template>
+      </div>
+    </ng-container>
+
+    <!-- ── TAB: Users ── -->
+    <ng-container *ngIf="activeTab === 'users'">
+      <div class="panel-search-row">
+        <input
+          class="panel-search"
+          type="text"
+          placeholder="Search people…"
+          [(ngModel)]="userSearch"
+        />
+      </div>
+      <div class="conv-list">
+        <ng-container *ngIf="filteredUsers.length; else noUsers">
+          <button
+            *ngFor="let user of filteredUsers; trackBy: trackByUserId"
+            class="conv-item user-row"
+            [class.active]="existingDmKey(user.user_id) === activeKey"
+            (click)="openDm(user.user_id)"
+          >
+            <!-- Avatar + online indicator -->
+            <div class="avatar-wrap">
+              <div class="avatar">{{ user.user_id.charAt(0).toUpperCase() }}</div>
+              <span class="status-dot" [class.online]="user.is_online" [class.offline]="!user.is_online"></span>
+            </div>
+
+            <div class="conv-info">
+              <div class="conv-name">{{ user.user_id }}</div>
+              <div class="user-status-label" [class.online-text]="user.is_online">
+                {{ user.is_online ? 'Online' : 'Offline' }}
+              </div>
+            </div>
+
+            <!-- Unread badge if there's an existing DM -->
+            <span class="unread-badge" *ngIf="existingDmKey(user.user_id) as dmKey">
+              <ng-container *ngIf="unreadCount({ key: dmKey, type: 'dm', messages: [], unread: 0 }) > 0">
+                {{ unreadCount({ key: dmKey, type: 'dm', messages: [], unread: 0 }) }}
+              </ng-container>
+            </span>
+          </button>
+        </ng-container>
+        <ng-template #noUsers>
+          <div class="empty-panel">
+            <span class="empty-icon">👤</span>
+            <p>No other users found</p>
+          </div>
+        </ng-template>
+      </div>
+    </ng-container>
+
+    <!-- ── TAB: Groups ── -->
+    <ng-container *ngIf="activeTab === 'groups'">
+      <div class="conv-list">
+        <ng-container *ngIf="myGroups().length; else noGroups">
+          <button
+            *ngFor="let group of myGroups(); trackBy: trackByGroupId"
+            class="conv-item group-row"
+            [class.active]="('group::' + group.group_id) === activeKey"
+            (click)="openGroupChat(group.group_id)"
+          >
+            <div class="avatar group-avatar">👥</div>
+            <div class="conv-info">
+              <div class="conv-name">{{ group.name }}</div>
+              <div class="group-meta">
+                <span class="group-members">{{ groupMemberCount(group) }} members</span>
+                <span class="group-online" *ngIf="groupOnlineCount(group) > 0">
+                  · {{ groupOnlineCount(group) }} online
+                </span>
+              </div>
+            </div>
+            <span class="unread-badge"
+              *ngIf="unreadCount({ key: 'group::' + group.group_id, type: 'group', messages: [], unread: 0, groupId: group.group_id }) > 0">
+              {{ unreadCount({ key: 'group::' + group.group_id, type: 'group', messages: [], unread: 0, groupId: group.group_id }) }}
+            </span>
+          </button>
+        </ng-container>
+        <ng-template #noGroups>
+          <div class="empty-panel">
+            <span class="empty-icon">👥</span>
+            <p>No groups yet</p>
+            <span class="empty-hint">Create a group to get started</span>
+          </div>
+        </ng-template>
+      </div>
+    </ng-container>
+
+  </aside>
+
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <!-- MAIN AREA                                                              -->
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <div class="chat-main">
+
+    <!-- No conversation selected -->
+    <div class="no-selection" *ngIf="!activeConversation">
+      <span class="no-selection-icon">💬</span>
+      <p>Select a conversation to start chatting</p>
+      <span class="no-selection-hint">Use the tabs on the left to browse people and groups</span>
+    </div>
+
+    <!-- Active conversation -->
+    <ng-container *ngIf="activeConversation">
+
+      <!-- Header -->
+      <div class="chat-header">
+        <div class="avatar" [class.group-avatar]="activeConversation.type === 'group'" style="width:38px;height:38px;font-size:1rem;flex-shrink:0;">
+          {{ activeConversation.type === 'group'
+              ? '👥'
+              : labelFor(activeConversation).charAt(0).toUpperCase() }}
+        </div>
+
+        <div class="chat-peer-info">
+          <span class="chat-peer-name">{{ labelFor(activeConversation) }}</span>
+
+          <!-- DM: show online/offline status -->
+          <ng-container *ngIf="activeConversation.type === 'dm'">
+            <ng-container *ngFor="let u of users">
+              <ng-container *ngIf="u.user_id === labelFor(activeConversation)">
+                <span class="chat-peer-status" [class.online-text]="u.is_online">
+                  <span class="status-dot-sm" [class.online]="u.is_online" [class.offline]="!u.is_online"></span>
+                  {{ u.is_online ? 'Online' : 'Offline' }}
+                </span>
+              </ng-container>
+            </ng-container>
+          </ng-container>
+
+          <!-- Group: show member/online counts -->
+          <ng-container *ngIf="activeConversation.type === 'group'">
+            <ng-container *ngFor="let g of groups">
+              <ng-container *ngIf="g.group_id === activeConversation.groupId">
+                <span class="chat-peer-status">
+                  {{ groupMemberCount(g) }} members
+                  <span *ngIf="groupOnlineCount(g) > 0" class="online-text">
+                    · {{ groupOnlineCount(g) }} online
+                  </span>
+                </span>
+              </ng-container>
+            </ng-container>
+          </ng-container>
+        </div>
+      </div>
+
+      <!-- Messages -->
+      <div class="message-list" #messageList>
+
+        <ng-container *ngIf="activeMessages.length; else noMessages">
+
+          <!-- Date-grouped messages -->
+          <ng-container *ngFor="let group of groupedMessages; trackBy: trackByDate">
+            <div class="date-separator">
+              <span>{{ group.date }}</span>
+            </div>
+
+            <div
+              *ngFor="let msg of group.messages; trackBy: trackById"
+              class="message-row"
+              [class.mine]="isMine(msg)"
+              [class.theirs]="!isMine(msg)"
+            >
+              <!-- Avatar for other people's messages -->
+              <div class="msg-avatar" *ngIf="!isMine(msg)">
+                {{ msg.from.charAt(0).toUpperCase() }}
+              </div>
+
+              <div class="bubble">
+                <span class="bubble-sender"
+                  *ngIf="!isMine(msg) && activeConversation.type === 'group'">
+                  {{ msg.from }}
+                </span>
+                <span class="bubble-text">{{ msg.content }}</span>
+                <span class="bubble-time">{{ formatTime(msg.timestamp) }}</span>
+              </div>
+            </div>
+          </ng-container>
+
+        </ng-container>
+
+        <ng-template #noMessages>
+          <div class="no-messages">No messages yet — say hello 👋</div>
+        </ng-template>
+      </div>
+
+      <!-- Input -->
+      <div class="input-row">
+        <textarea
+          class="msg-input"
+          rows="1"
+          placeholder="Type a message…"
+          [(ngModel)]="messageText"
+          (keydown)="onEnter($event)"
+        ></textarea>
+        <button
+          class="send-btn"
+          [disabled]="!messageText.trim()"
+          (click)="send()"
+          title="Send (Enter)"
+        >
+          ➤
+        </button>
+      </div>
+
+    </ng-container>
+  </div>
+
+</div>

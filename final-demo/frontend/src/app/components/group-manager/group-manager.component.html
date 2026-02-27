@@ -1,0 +1,84 @@
+<!-- src/app/components/group-manager/group-manager.component.html -->
+<div class="group-panel">
+
+  <div class="panel-header">
+    <span class="panel-title">Groups</span>
+    <button class="btn-icon" (click)="toggleCreate()" [title]="showCreate ? 'Cancel' : 'New group'">
+      {{ showCreate ? '✕' : '+' }}
+    </button>
+  </div>
+
+  <!-- Create group form -->
+  <div class="create-form" *ngIf="showCreate">
+    <input
+      class="form-input"
+      type="text"
+      placeholder="Group name…"
+      [(ngModel)]="newGroupName"
+      maxlength="40"
+    />
+
+    <div class="member-picker" *ngIf="otherUsers().length > 0">
+      <div class="picker-label">Add members</div>
+      <div class="member-chips">
+        <button
+          *ngFor="let uid of otherUsers()"
+          class="chip"
+          [class.selected]="isMemberSelected(uid)"
+          (click)="toggleMember(uid)"
+        >{{ uid }}</button>
+      </div>
+    </div>
+
+    <button class="btn-create" [disabled]="!newGroupName.trim()" (click)="createGroup()">
+      Create Group
+    </button>
+  </div>
+
+  <!-- Group list -->
+  <div class="group-list">
+    <div *ngIf="(state.groups$ | async)?.length === 0" class="empty-state">
+      No groups yet
+    </div>
+
+    <div
+      *ngFor="let group of (state.groups$ | async); trackBy: trackGroup"
+      class="group-item"
+    >
+      <div class="group-row" (click)="toggleExpand(group.group_id)">
+        <div class="group-avatar">
+          {{ group.name[0].toUpperCase() }}
+        </div>
+        <div class="group-meta">
+          <span class="group-name">{{ group.name }}</span>
+          <span class="group-count">{{ group.members.length }} members</span>
+        </div>
+        <div class="group-actions">
+          <button
+            class="btn-group-call"
+            (click)="callGroup(group.group_id); $event.stopPropagation()"
+            [disabled]="!callIdle"
+            title="Call group"
+          >☎</button>
+          <span class="chevron" [class.open]="expandedGroup === group.group_id">›</span>
+        </div>
+      </div>
+
+      <!-- Expanded member list -->
+      <div class="member-list" *ngIf="expandedGroup === group.group_id">
+        <div *ngFor="let uid of group.members" class="member-row">
+          <span class="member-avatar">{{ uid[0].toUpperCase() }}</span>
+          <span class="member-uid">{{ uid }}<em *ngIf="isMe(uid)"> (you)</em></span>
+          <button
+            class="btn-remove"
+            *ngIf="(isCreator(group) && !isMe(uid)) || isMe(uid)"
+            (click)="removeMember(group.group_id, uid)"
+            title="Remove"
+          >✕</button>
+        </div>
+        <button class="btn-add-member" (click)="addMember(group.group_id)">+ Add member</button>
+      </div>
+    </div>
+  </div>
+
+</div>

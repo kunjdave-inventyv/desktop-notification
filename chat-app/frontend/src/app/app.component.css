@@ -1,0 +1,26 @@
+.app-container {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  background-color: var(--teams-bg-light);
+  overflow: hidden;
+}
+
+.sidebar-area {
+  flex: 0 0 320px;
+  background: var(--teams-bg-white);
+  z-index: 20;
+}
+
+.chat-area {
+  flex: 1;
+  background: var(--teams-bg-light);
+  display: flex;
+  flex-direction: column;
+}
+
+@media (max-width: 768px) {
+  .sidebar-area {
+    flex: 0 0 260px;
+  }
+}

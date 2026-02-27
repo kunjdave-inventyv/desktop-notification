@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Push Notification Demo</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0a0a0f;
+      color: #e0e0ff;
+      font-family: 'JetBrains Mono', monospace;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 520px;
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      letter-spacing: 0.1em;
+      color: #7c7cff;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+    }
+
+    .subtitle {
+      font-size: 0.75rem;
+      color: #555588;
+      margin-bottom: 32px;
+    }
+
+    .card {
+      background: #12121e;
+      border: 1px solid #2a2a4a;
+      border-radius: 8px;
+      padding: 24px;
+      margin-bottom: 16px;
+    }
+
+    .card h2 {
+      font-size: 0.8rem;
+      color: #7c7cff;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      margin-bottom: 16px;
+    }
+
+    button {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-right: 8px;
+      margin-bottom: 8px;
+    }
+
+    .btn-primary {
+      background: #7c7cff;
+      color: #0a0a0f;
+      font-weight: 700;
+    }
+
+    .btn-primary:hover { background: #9999ff; }
+    .btn-primary:disabled { background: #2a2a4a; color: #555588; cursor: not-allowed; }
+
+    .btn-secondary {
+      background: transparent;
+      color: #7c7cff;
+      border: 1px solid #7c7cff;
+    }
+
+    .btn-secondary:hover { background: #7c7cff22; }
+    .btn-secondary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    #log {
+      background: #080810;
+      border: 1px solid #1a1a3a;
+      border-radius: 4px;
+      padding: 12px;
+      font-size: 0.75rem;
+      min-height: 120px;
+      max-height: 240px;
+      overflow-y: auto;
+      color: #aaaacc;
+      line-height: 1.8;
+    }
+
+    .log-ok   { color: #44ff88; }
+    .log-err  { color: #ff4466; }
+    .log-info { color: #7c7cff; }
+
+    #status {
+      font-size: 0.75rem;
+      padding: 6px 12px;
+      border-radius: 4px;
+      display: inline-block;
+      margin-bottom: 16px;
+    }
+
+    .status-idle       { background: #1a1a2e; color: #555588; }
+    .status-subscribed { background: #0a2a1a; color: #44ff88; }
+    .status-error      { background: #2a0a0a; color: #ff4466; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1>Push API Demo</h1>
+  <p class="subtitle">// frontend ↔ rust backend</p>
+
+  <div class="card">
+    <h2>01 — Subscription</h2>
+    <div id="status" class="status-idle">● NOT SUBSCRIBED</div>
+    <br>
+    <button class="btn-primary" id="subscribeBtn" onclick="subscribe()">Subscribe</button>
+    <button class="btn-secondary" id="unsubscribeBtn" onclick="unsubscribe()" disabled>Unsubscribe</button>
+  </div>
+
+  <div class="card">
+    <h2>02 — Trigger Notification</h2>
+    <button class="btn-secondary" id="sendBtn" onclick="sendNotification()" disabled>Send Push from Backend</button>
+  </div>
+
+  <div class="card">
+    <h2>03 — Log</h2>
+    <div id="log"><span class="log-info">// waiting for events...</span></div>
+  </div>
+</div>
+
+<script>
+const PUBLIC_KEY = 'BNabC-w7D0OU7BafBOdV_ZU2BlPkt_TEXFxqtDWRNLU8X__dPDrY0hU3VQNr2Rq10c8RCRq8dVMizjNmoNApvFc';
+const BACKEND   = 'http://localhost:3000';
+
+let swReg = null;
+
+function log(msg, type = 'info') {
+  const el = document.getElementById('log');
+  const line = document.createElement('div');
+  line.className = `log-${type}`;
+  const ts = new Date().toLocaleTimeString();
+  line.textContent = `[${ts}] ${msg}`;
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+}
+
+function setStatus(text, cls) {
+  const el = document.getElementById('status');
+  el.textContent = `● ${text}`;
+  el.className = `status-${cls}`;
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = window.atob(base64);
+  return new Uint8Array([...raw].map(c => c.charCodeAt(0)));
+}
+
+async function init() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    log('Push API not supported in this browser', 'err');
+    return;
+  }
+
+  log('Registering service worker...', 'info');
+  swReg = await navigator.serviceWorker.register('/sw.js');
+  log('Service worker registered', 'ok');
+
+  const existing = await swReg.pushManager.getSubscription();
+  if (existing) {
+    log('Found existing subscription', 'ok');
+    setStatus('SUBSCRIBED', 'subscribed');
+    document.getElementById('subscribeBtn').disabled = true;
+    document.getElementById('unsubscribeBtn').disabled = false;
+    document.getElementById('sendBtn').disabled = false;
+  }
+}
+
+async function subscribe() {
+  try {
+    log('Requesting notification permission...', 'info');
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') { log('Permission denied', 'err'); return; }
+
+    log('Subscribing to push...', 'info');
+    const sub = await swReg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(PUBLIC_KEY)
+    });
+
+    log('Sending subscription to backend...', 'info');
+    const res = await fetch(`${BACKEND}/subscribe`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(sub)
+    });
+
+    if (!res.ok) throw new Error(`Backend returned ${res.status}`);
+    log('Subscribed successfully!', 'ok');
+    setStatus('SUBSCRIBED', 'subscribed');
+    document.getElementById('subscribeBtn').disabled = true;
+    document.getElementById('unsubscribeBtn').disabled = false;
+    document.getElementById('sendBtn').disabled = false;
+  } catch (e) {
+    log(`Error: ${e.message}`, 'err');
+    setStatus('ERROR', 'error');
+  }
+}
+
+async function unsubscribe() {
+  const sub = await swReg.pushManager.getSubscription();
+  if (sub) await sub.unsubscribe();
+  await fetch(`${BACKEND}/unsubscribe`, { method: 'POST' });
+  log('Unsubscribed', 'info');
+  setStatus('NOT SUBSCRIBED', 'idle');
+  document.getElementById('subscribeBtn').disabled = false;
+  document.getElementById('unsubscribeBtn').disabled = true;
+  document.getElementById('sendBtn').disabled = true;
+}
+
+async function sendNotification() {
+  try {
+    log('Requesting push from backend...', 'info');
+    const res = await fetch(`${BACKEND}/send`, { method: 'POST' });
+    if (!res.ok) throw new Error(`Backend returned ${res.status}`);
+    log('Push sent! Check your notification tray.', 'ok');
+  } catch (e) {
+    log(`Error: ${e.message}`, 'err');
+  }
+}
+
+// Listen for messages from SW
+navigator.serviceWorker.addEventListener('message', e => {
+  log(`SW message: ${JSON.stringify(e.data)}`, 'info');
+});
+
+init();
+</script>
+</body>
+</html>
