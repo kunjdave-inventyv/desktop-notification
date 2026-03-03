@@ -1,0 +1,13 @@
+port: 7880
+
+rtc:
+  tcp_port: 7881
+  udp_port: 7882
+  use_external_ip: false        # false for local Windows dev
+
+keys:
+  devkey: devsecret123
+
+logging:
+  level: info
+  json: false

@@ -1,3 +1,43 @@
+<!-- 
+<div class="call-overlay" *ngIf="isVisible" [class.ringing]="isRinging">
+  <div class="call-card" [class.active]="isActive">
+
+    <div class="pulse-wrap">
+      <div class="pulse-ring" *ngIf="isRinging || isCalling"></div>
+      <div class="call-avatar">
+        {{ displayName ? displayName[0].toUpperCase() : '?' }}
+      </div>
+    </div>
+
+    <div class="call-name">{{ displayName }}</div>
+
+    <div class="call-status">
+      <span *ngIf="isCalling">Calling…</span>
+      <span *ngIf="isRinging && call?.direction === 'incoming'">Incoming call</span>
+      <span *ngIf="isActive">{{ elapsed }}</span>
+      <div *ngIf="isActive && call?.type === 'group' && call?.participants?.length" class="participants">
+        <span *ngFor="let p of call?.participants">{{ p }}</span>
+      </div>
+    </div>
+
+    <div class="call-controls">
+
+      <ng-container *ngIf="isRinging">
+        <button class="ctrl accept" (click)="accept()" title="Accept">✓</button>
+        <button class="ctrl reject" (click)="reject()" title="Reject">✕</button>
+      </ng-container>
+
+      <ng-container *ngIf="isCalling">
+        <button class="ctrl reject" (click)="cancel()" title="Cancel">✕</button>
+      </ng-container>
+
+      <ng-container *ngIf="isActive">
+        <button class="ctrl end" (click)="cutCall()" title="End call">📵</button>
+      </ng-container>
+
+    </div>
+  </div>
+</div> -->
 <!-- src/app/components/call-screen/call-screen.component.html -->
 <div class="call-overlay" *ngIf="isVisible" [class.ringing]="isRinging">
   <div class="call-card" [class.active]="isActive">
@@ -37,8 +77,16 @@
         <button class="ctrl reject" (click)="cancel()" title="Cancel">✕</button>
       </ng-container>
 
-      <!-- Active call: End -->
+      <!-- Active call: Mute + End -->
       <ng-container *ngIf="isActive">
+        <button
+          class="ctrl mute"
+          [class.muted]="isMuted"
+          (click)="toggleMic()"
+          [title]="isMuted ? 'Unmute' : 'Mute'"
+        >
+          {{ isMuted ? '🔇' : '🎤' }}
+        </button>
         <button class="ctrl end" (click)="cutCall()" title="End call">📵</button>
       </ng-container>
 

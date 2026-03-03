@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use socketioxide::socket::Sid;
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::RwLock;
+use crate::livekit::LiveKitConfig;
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -119,6 +120,7 @@ pub struct AppState {
     pub messages: MessageStore, 
     pub auth:     Arc<dyn TokenProvider>,
     pub http:     reqwest::Client,
+    pub livekit:  Arc<crate::livekit::LiveKitConfig>,
 }
 
 // ── Inbound payloads (client → server) ───────────────────────────────────────
@@ -219,6 +221,10 @@ pub mod event {
     pub const MESSAGE_SENT:        &str = "message_sent";
     pub const MESSAGE_HISTORY:     &str = "message_history";
 
+    // live kit
+    pub const LIVEKIT_TOKEN:       &str = "livekit_token";        // 1-to-1 call token
+    pub const GROUP_LIVEKIT_TOKEN: &str = "group_livekit_token";  // group call token
+
     pub const ERROR:               &str = "error";
 }
 
@@ -308,3 +314,23 @@ pub struct MessageHistoryPayload {
 
 #[derive(Debug, Serialize)]
 pub struct ErrorPayload { pub message: String }
+
+
+
+/// Sent to BOTH caller and callee when the call is accepted.
+/// Client uses url + token to connect to LiveKit room directly.
+#[derive(Debug, Serialize, Clone)]
+pub struct LiveKitTokenPayload {
+    pub room:  String,   // room name
+    pub token: String,   // JWT access token
+    pub url:   String,   // wss://your-livekit-server
+}
+
+/// Same but for group calls — includes group_id so client knows which call it's for.
+#[derive(Debug, Serialize, Clone)]
+pub struct GroupLiveKitTokenPayload {
+    pub group_id: String,
+    pub room:     String,
+    pub token:    String,
+    pub url:      String,
+}

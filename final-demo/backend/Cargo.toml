@@ -32,3 +32,5 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # timestamp management
 chrono = { version = "0.4", features = ["serde"] }
+
+livekit-api = "0.2"

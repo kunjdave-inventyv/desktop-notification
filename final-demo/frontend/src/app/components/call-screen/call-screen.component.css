@@ -125,7 +125,7 @@
   transition: transform 0.15s, opacity 0.15s;
 }
 
-.ctrl:hover { transform: scale(1.1); }
+.ctrl:hover  { transform: scale(1.1); }
 .ctrl:active { transform: scale(0.95); }
 
 .ctrl.accept {
@@ -135,7 +135,21 @@
   font-weight: 700;
 }
 
-.ctrl.reject, .ctrl.end {
+.ctrl.reject,
+.ctrl.end {
   background: var(--red);
   color: #fff;
+}
+
+/* Mute button — neutral when live, red-tinted when muted */
+.ctrl.mute {
+  background: var(--surface-2, #2a2a2a);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+}
+
+.ctrl.mute.muted {
+  background: rgba(220, 53, 69, 0.18);
+  border-color: var(--red);
+  color: var(--red);
 }
