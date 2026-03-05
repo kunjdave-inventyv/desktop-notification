@@ -19,7 +19,7 @@ pub async fn on_call(
     State(state): State<AppState>,
     Data(payload): Data<CallPayload>,
 ) {
-    let CallPayload { from, to } = payload;
+    let CallPayload { from, to, video } = payload;
     let socket_id = socket.id;  // Sid
 
     if from == to {
@@ -61,7 +61,7 @@ pub async fn on_call(
     // Deliver "incoming_call" to every open tab of the callee
     for sid in &callee_state.socket_ids {
         if let Some(peer) = socket.broadcast().get_socket(*sid) {
-            let _ = peer.emit(event::INCOMING_CALL, &IncomingCallPayload { from: from.clone() });
+            let _ = peer.emit(event::INCOMING_CALL, &IncomingCallPayload { from: from.clone(), video: video.unwrap_or(false) });
         }
     }
 
@@ -70,9 +70,10 @@ pub async fn on_call(
     if !fcm_tokens.is_empty() {
         let (f, t2, http) = (from.clone(), to.clone(), state.http.clone());
         let auth_clone = state.auth.clone();
+        let is_video = video.unwrap_or(false);
         tokio::spawn(async move {
             for token in fcm_tokens {
-                send_fcm_notification(&token, &f, &t2, auth_clone.as_ref(), &http).await;
+                send_fcm_notification(&token, &f, &t2, is_video, auth_clone.as_ref(), &http).await;
             }
         });
     } else if !callee_state.is_online() {
@@ -99,6 +100,7 @@ pub async fn on_call(
         status:           CallStatus::Ringing,
         caller_socket_id: socket_id,
         participants:     Vec::new(),
+        video:            video.unwrap_or(false),
         _timeout_handle:  timeout_handle, // Dropping this aborts the timeout task
     });
 

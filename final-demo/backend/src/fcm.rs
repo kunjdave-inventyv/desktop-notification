@@ -20,21 +20,30 @@ pub async fn send_fcm_notification(
     fcm_token: &str,
     from:      &str,
     to:        &str,
+    video:     bool,
     auth:      &dyn TokenProvider,
     http:      &reqwest::Client,
 ) -> TokenStatus {
     let bearer = match get_bearer(auth).await { Some(t) => t, None => return TokenStatus::Ok };
 
     let url  = format!("https://fcm.googleapis.com/v1/projects/{FCM_PROJECT_ID}/messages:send");
+    
+    let title = if video {
+        format!("📹 Incoming video call from {from}")
+    } else {
+        format!("📞 Incoming audio call from {from}")
+    };
+    
     let body = serde_json::json!({
         "message": {
             "token": fcm_token,
             "data": {
-                "action": "incoming_call",
+                "action": if video { "incoming_video_call" } else { "incoming_call" },
                 "caller": from,
                 "callee": to,
-                "title":  format!("📞 Incoming call from {from}"),
+                "title":  title,
                 "body":   "Tap Accept to answer",
+                "video":  if video { "true" } else { "false" },
             },
             "android": { "priority": "high" },
             "apns":    { "headers": { "apns-priority": "10" } },

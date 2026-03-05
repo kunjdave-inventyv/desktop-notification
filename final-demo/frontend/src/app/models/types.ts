@@ -28,6 +28,7 @@ export interface ActiveCall {
   groupName?: string;
   participants?: string[];  // group call participants
   direction: 'outgoing' | 'incoming';
+  video?: boolean;          // true if video call
   startTime?: number;
   rejectedCount?: number;   // ← add this
 }
@@ -40,18 +41,18 @@ export interface ToastMessage {
 
 export interface ChatMessage {
   message_id: string;
-  from:        string;
-  to?:         string;       // present for DMs
-  group_id?:   string;       // present for group messages
-  content:     string;
-  timestamp:   string;       // RFC-3339
+  from: string;
+  to?: string;       // present for DMs
+  group_id?: string;       // present for group messages
+  content: string;
+  timestamp: string;       // RFC-3339
 }
 
 export interface ChatConversation {
-  key:      string;          // dm_key or "group::{id}"
-  type:     'dm' | 'group';
-  name?:    string;          // group display name (group only)
+  key: string;          // dm_key or "group::{id}"
+  type: 'dm' | 'group';
+  name?: string;          // group display name (group only)
   groupId?: string;          // group_id (group only)
   messages: ChatMessage[];
-  unread:   number;          // messages received while conversation not active
+  unread: number;          // messages received while conversation not active
 }

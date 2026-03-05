@@ -571,7 +571,7 @@ pub async fn on_group_call(
     State(state): State<AppState>,
     Data(payload): Data<GroupCallPayload>,
 ) {
-    let GroupCallPayload { from, group_id } = payload;
+    let GroupCallPayload { from, group_id, video } = payload;
     let socket_id: Sid = socket.id;
 
     if !identity_matches(&state, socket_id, &from).await {
@@ -636,6 +636,7 @@ pub async fn on_group_call(
         from:       from.clone(),
         group_id:   group_id.clone(),
         group_name: group_name.clone(),
+        video:      video.unwrap_or(false),
     };
 
     let users_snap = state.users.read().await;
@@ -650,9 +651,10 @@ pub async fn on_group_call(
                 let tokens: Vec<String> = ms.fcm_tokens.clone();
                 let (f, gid, http) = (from.clone(), group_id.clone(), state.http.clone());
                 let auth = state.auth.clone();
+                let is_video = video.unwrap_or(false);
                 tokio::spawn(async move {
                     for token in tokens {
-                        send_fcm_notification(&token, &f, &gid, auth.as_ref(), &http).await;
+                        send_fcm_notification(&token, &f, &gid, is_video, auth.as_ref(), &http).await;
                     }
                 });
             }
@@ -679,6 +681,7 @@ pub async fn on_group_call(
         status:           CallStatus::Ringing,
         caller_socket_id: socket_id,
         participants:     vec![from.clone(), format!("@total:{non_caller_count}")],
+        video:            video.unwrap_or(false),
         _timeout_handle:  timeout_handle,
     });
 

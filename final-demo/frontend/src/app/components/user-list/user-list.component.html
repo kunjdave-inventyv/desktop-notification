@@ -23,14 +23,24 @@
             {{ user.is_online ? 'online' : 'offline' }}
           </span>
         </div>
-        <button
-          class="btn-call"
-          (click)="call(user.user_id)"
-          [disabled]="!callIdle"
-          title="Call {{ user.user_id }}"
-        >
-          ☎
-        </button>
+        <div class="actions">
+          <button
+            class="btn-call"
+            (click)="call(user.user_id, false)"
+            [disabled]="!callIdle"
+            title="Audio call {{ user.user_id }}"
+          >
+            ☎
+          </button>
+          <button
+            class="btn-call video"
+            (click)="call(user.user_id, true)"
+            [disabled]="!callIdle"
+            title="Video call {{ user.user_id }}"
+          >
+            📹
+          </button>
+        </div>
       </div>
     </ng-container>
   </div>

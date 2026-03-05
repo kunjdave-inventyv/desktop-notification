@@ -12,12 +12,12 @@ import { AppStateService } from '../../services/app-state.service';
   styleUrls: ['./user-list.component.css'],
 })
 export class UserListComponent {
-  constructor(public state: AppStateService) {}
+  constructor(public state: AppStateService) { }
 
-  call(userId: string): void {
+  call(userId: string, video: boolean = false): void {
     const cs = this.state.callState$.value;
     if (cs !== 'idle') return;
-    this.state.makeCall(userId);
+    this.state.makeCall(userId, video);
   }
 
   get callIdle(): boolean {

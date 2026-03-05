@@ -90,7 +90,9 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AppStateService } from '../../services/app-state.service';
+import { LiveKitService } from '../../services/livekit.service';
 import { Subscription, interval } from 'rxjs';
+import { RemoteTrack, LocalVideoTrack } from 'livekit-client';
 
 @Component({
   selector: 'app-call-screen',
@@ -103,25 +105,45 @@ export class CallScreenComponent implements OnInit, OnDestroy {
   elapsed = '00:00';
   private timerSub?: Subscription;
 
-  constructor(public state: AppStateService) {}
+  remoteVideoTracks: { identity: string, track: RemoteTrack }[] = [];
+  localVideoTrack: LocalVideoTrack | null = null;
+  private videoSub?: Subscription;
+  private localVideoSub?: Subscription;
+
+  constructor(
+    public state: AppStateService,
+    private liveKit: LiveKitService
+  ) { }
 
   ngOnInit(): void {
     this.state.activeCall$.subscribe(call => {
       if (call?.startTime) this.startTimer(call.startTime);
-      else                 this.stopTimer();
+      else this.stopTimer();
+    });
+
+    this.videoSub = this.liveKit.remoteVideoTracks$.subscribe(tracks => {
+      this.remoteVideoTracks = tracks;
+    });
+
+    this.localVideoSub = this.liveKit.localVideoTrack$.subscribe(track => {
+      this.localVideoTrack = track;
     });
   }
 
-  ngOnDestroy(): void { this.stopTimer(); }
+  ngOnDestroy(): void {
+    this.stopTimer();
+    this.videoSub?.unsubscribe();
+    this.localVideoSub?.unsubscribe();
+  }
 
   get callState() { return this.state.callState$.value; }
-  get call()      { return this.state.activeCall$.value; }
-  get isMuted()   { return this.state.micMuted$.value; }   // ← bound to micMuted$
+  get call() { return this.state.activeCall$.value; }
+  get isMuted() { return this.state.micMuted$.value; }   // ← bound to micMuted$
 
   get isVisible(): boolean { return this.callState !== 'idle'; }
   get isRinging(): boolean { return this.callState === 'ringing' || this.callState === 'group_ringing'; }
   get isCalling(): boolean { return this.callState === 'calling' || this.callState === 'group_calling'; }
-  get isActive():  boolean { return this.callState === 'active'  || this.callState === 'group_active'; }
+  get isActive(): boolean { return this.callState === 'active' || this.callState === 'group_active'; }
 
   get displayName(): string {
     const c = this.call;
@@ -130,19 +152,32 @@ export class CallScreenComponent implements OnInit, OnDestroy {
     return c.peerId ?? '';
   }
 
-  accept():    void {
-    if (this.callState === 'ringing')       this.state.acceptCall();
+  accept(): void {
+    if (this.callState === 'ringing') this.state.acceptCall();
     else if (this.callState === 'group_ringing') this.state.acceptGroupCall();
   }
 
-  reject():    void {
-    if (this.callState === 'ringing')       this.state.rejectCall();
+  reject(): void {
+    if (this.callState === 'ringing') this.state.rejectCall();
     else if (this.callState === 'group_ringing') this.state.rejectGroupCall();
   }
 
-  cancel():    void { this.state.cancelCall(); }
-  cutCall():   void { this.state.cutCall(); }
+  cancel(): void { this.state.cancelCall(); }
+  cutCall(): void { this.state.cutCall(); }
   toggleMic(): void { this.state.toggleMic(); }             // ← mute/unmute
+
+  get isCameraEnabled(): boolean {
+    return this.liveKit.isCameraEnabled;
+  }
+
+  toggleCamera(): void {
+    this.liveKit.setCameraEnabled(!this.isCameraEnabled);
+  }
+
+  mediaStreamFromTrack(track: any): MediaStream | null {
+    if (!track || !track.mediaStreamTrack) return null;
+    return new MediaStream([track.mediaStreamTrack]);
+  }
 
   private startTimer(startTime: number): void {
     this.stopTimer();

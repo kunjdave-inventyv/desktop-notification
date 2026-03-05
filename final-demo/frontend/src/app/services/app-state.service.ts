@@ -744,11 +744,11 @@ import { LiveKitService } from './livekit.service';
 export class AppStateService {
 
   public currentUserId$ = new BehaviorSubject<string | null>(null);
-  public users$         = new BehaviorSubject<UserEntry[]>([]);
-  public groups$        = new BehaviorSubject<Group[]>([]);
-  public callState$     = new BehaviorSubject<CallState>('idle');
-  public activeCall$    = new BehaviorSubject<ActiveCall | null>(null);
-  public toasts$        = new BehaviorSubject<ToastMessage[]>([]);
+  public users$ = new BehaviorSubject<UserEntry[]>([]);
+  public groups$ = new BehaviorSubject<Group[]>([]);
+  public callState$ = new BehaviorSubject<CallState>('idle');
+  public activeCall$ = new BehaviorSubject<ActiveCall | null>(null);
+  public toasts$ = new BehaviorSubject<ToastMessage[]>([]);
   public conversations$ = new BehaviorSubject<ChatConversation[]>([]);
 
   // ── Mic mute state (UI binds to this) ────────────────────────────────────
@@ -765,13 +765,13 @@ export class AppStateService {
     return v;
   }
 
-  get userId(): string | null  { return this.currentUserId$.value; }
-  get users(): UserEntry[]     { return this.users$.value; }
-  get groups(): Group[]        { return this.groups$.value; }
+  get userId(): string | null { return this.currentUserId$.value; }
+  get users(): UserEntry[] { return this.users$.value; }
+  get groups(): Group[] { return this.groups$.value; }
 
   constructor(
-    private ws:      WebSocketService,
-    public  push:    PushSubscriptionService,
+    private ws: WebSocketService,
+    public push: PushSubscriptionService,
     private liveKit: LiveKitService,
   ) {
     this.ws.events$.subscribe(({ event, data }) => this.handle(event, data));
@@ -799,7 +799,7 @@ export class AppStateService {
         case 'CHAT_REPLY_FROM_NOTIFICATION':
           if (!this.userId) break;
           if (msg.groupId) this.sendGroupMessage(msg.groupId, msg.content);
-          else             this.sendMessage(msg.to, msg.content);
+          else this.sendMessage(msg.to, msg.content);
           break;
         case 'OPEN_CHAT_FROM_NOTIFICATION':
           this._pendingOpenChat = { from: msg.from, groupId: msg.groupId ?? null };
@@ -851,7 +851,7 @@ export class AppStateService {
           u.user_id === offlineId ? { ...u, is_online: false } : u));
 
         const call = this.activeCall$.value;
-        const cs   = this.callState$.value;
+        const cs = this.callState$.value;
         if (!call || cs === 'idle') break;
 
         if (call.type === 'direct' && call.peerId === offlineId) {
@@ -887,7 +887,7 @@ export class AppStateService {
       case 'incoming_call':
         if (this.callState$.value !== 'idle') break;
         this.callState$.next('ringing');
-        this.activeCall$.next({ type: 'direct', peerId: data.from, direction: 'incoming' });
+        this.activeCall$.next({ type: 'direct', peerId: data.from, direction: 'incoming', video: data.video });
         this.startRing();
         this.toast('info', `📞 Incoming call from ${data.from}`);
         this.flushPendingAction('direct', data.from);
@@ -990,7 +990,7 @@ export class AppStateService {
         this.callState$.next('group_ringing');
         this.activeCall$.next({
           type: 'group',
-          groupId:   data.group_id,
+          groupId: data.group_id,
           groupName: data.group_name,
           direction: 'incoming',
           participants: [data.from],
@@ -1004,7 +1004,7 @@ export class AppStateService {
         const call = this.activeCall$.value;
         if (!call || call.groupId !== data.group_id) break;
 
-        const existing     = call.participants || [];
+        const existing = call.participants || [];
         const participants = existing.includes(data.user_id)
           ? existing : [...existing, data.user_id];
 
@@ -1034,9 +1034,9 @@ export class AppStateService {
           if (data.user_id !== this.userId)
             this.toast('info', `👤 ${data.user_id} declined`);
 
-          const group        = this.groups$.value.find(g => g.group_id === data.group_id);
+          const group = this.groups$.value.find(g => g.group_id === data.group_id);
           const totalInvited = (group?.members?.length ?? 1) - 1;
-          const accepted     = (call.participants?.filter(p => p !== this.userId).length ?? 0);
+          const accepted = (call.participants?.filter(p => p !== this.userId).length ?? 0);
 
           if ((accepted + rejectedCount) >= totalInvited && accepted === 0) {
             this.toast('info', '📵 Nobody answered');
@@ -1050,11 +1050,11 @@ export class AppStateService {
         if (data.user_id !== this.userId)
           this.toast('info', `👤 ${data.user_id} left the call`);
 
-        const group        = this.groups$.value.find(g => g.group_id === data.group_id);
+        const group = this.groups$.value.find(g => g.group_id === data.group_id);
         const totalInvited = (group?.members?.length ?? 1) - 1;
-        const accepted     = participants.filter(p => p !== this.userId).length;
-        const rejected     = call.rejectedCount ?? 0;
-        const onlyMeLeft   = participants.length === 1 && participants[0] === this.userId;
+        const accepted = participants.filter(p => p !== this.userId).length;
+        const rejected = call.rejectedCount ?? 0;
+        const onlyMeLeft = participants.length === 1 && participants[0] === this.userId;
 
         if (onlyMeLeft && (accepted + rejected) >= totalInvited) {
           this.toast('info', '📵 Everyone left — call ended');
@@ -1074,20 +1074,20 @@ export class AppStateService {
       case 'direct_message':
         this.ingestMessage({
           message_id: data.message_id,
-          from:       data.from,
-          to:         data.to,
-          content:    data.content,
-          timestamp:  data.timestamp,
+          from: data.from,
+          to: data.to,
+          content: data.content,
+          timestamp: data.timestamp,
         }, this.dmKey(data.from, data.to));
         break;
 
       case 'group_message':
         this.ingestMessage({
           message_id: data.message_id,
-          from:       data.from,
-          group_id:   data.group_id,
-          content:    data.content,
-          timestamp:  data.timestamp,
+          from: data.from,
+          group_id: data.group_id,
+          content: data.content,
+          timestamp: data.timestamp,
         }, this.groupKey(data.group_id));
         break;
 
@@ -1097,11 +1097,11 @@ export class AppStateService {
           : this.dmKey(data.from, data.to);
         this.ingestMessage({
           message_id: data.message_id,
-          from:       data.from,
-          to:         data.to,
-          group_id:   data.group_id,
-          content:    data.content,
-          timestamp:  data.timestamp,
+          from: data.from,
+          to: data.to,
+          group_id: data.group_id,
+          content: data.content,
+          timestamp: data.timestamp,
         }, key);
         break;
       }
@@ -1122,7 +1122,7 @@ export class AppStateService {
         }
 
         conv.messages = messages;
-        conv.unread   = 0;
+        conv.unread = 0;
         this.conversations$.next(convs);
         break;
       }
@@ -1150,12 +1150,12 @@ export class AppStateService {
 
   // ── Direct call actions ───────────────────────────────────────────────────
 
-  makeCall(toUserId: string): void {
+  makeCall(toUserId: string, video: boolean = false): void {
     if (!this.userId) return;
     this.callState$.next('calling');
-    this.activeCall$.next({ type: 'direct', peerId: toUserId, direction: 'outgoing' });
+    this.activeCall$.next({ type: 'direct', peerId: toUserId, direction: 'outgoing', video });
     this.startRing();
-    this.ws.send('call', { from: this.userId, to: toUserId });
+    this.ws.send('call', { from: this.userId, to: toUserId, video });
   }
 
   cancelCall(): void {
@@ -1170,11 +1170,12 @@ export class AppStateService {
   acceptCall(fromUserId?: string): void {
     const call = this.activeCall$.value;
     const from = fromUserId || call?.peerId;
+    const video = call?.video || false;
     if (!this.userId || !from) return;
     this.push.dismissCallNotification(from);
     this.stopRing();
     this.callState$.next('active');
-    this.activeCall$.next({ ...call!, startTime: Date.now() } as ActiveCall);
+    this.activeCall$.next({ ...call!, startTime: Date.now(), video } as ActiveCall);
     this.ws.send('accept', { from: this.userId, to: from });
     // LiveKit token arrives via 'livekit_token' event
   }
@@ -1208,23 +1209,23 @@ export class AppStateService {
 
   // ── Group call actions ────────────────────────────────────────────────────
 
-  makeGroupCall(groupId: string): void {
+  makeGroupCall(groupId: string, video: boolean = false): void {
     if (!this.userId || this.callState$.value !== 'idle') return;
     this.callState$.next('group_calling');
     const group = this.groups$.value.find(g => g.group_id === groupId);
     this.activeCall$.next({
       type: 'group', groupId, groupName: group?.name,
-      direction: 'outgoing', participants: [this.userId],
+      direction: 'outgoing', participants: [this.userId], video,
     });
     this.startRing();
-    this.ws.send('group_call', { from: this.userId, group_id: groupId });
+    this.ws.send('group_call', { from: this.userId, group_id: groupId, video });
     // LiveKit token arrives via 'group_livekit_token' event
   }
 
   acceptGroupCall(): void {
     const call = this.activeCall$.value;
     if (!this.userId || !call?.groupId) return;
-    this._doAcceptGroupCall(call.groupId);
+    this._doAcceptGroupCall(call.groupId, call.video || false);
   }
 
   acceptGroupCallById(groupId: string): void {
@@ -1232,10 +1233,11 @@ export class AppStateService {
     const cs = this.callState$.value;
     if (cs !== 'idle' && cs !== 'group_ringing') return;
     if (this.activeCall$.value && this.activeCall$.value.groupId !== groupId) return;
-    this._doAcceptGroupCall(groupId);
+    const video = this.activeCall$.value?.video || false;
+    this._doAcceptGroupCall(groupId, video);
   }
 
-  private _doAcceptGroupCall(groupId: string): void {
+  private _doAcceptGroupCall(groupId: string, video: boolean): void {
     const call = this.activeCall$.value;
     if (this.userId) this.push.dismissGroupNotification(this.userId, groupId);
     this.stopRing();
@@ -1243,7 +1245,7 @@ export class AppStateService {
     this.ws.send('group_accept', { from: this.userId, group_id: groupId });
     if (call) {
       this.activeCall$.next({
-        ...call, direction: 'outgoing', startTime: Date.now(),
+        ...call, direction: 'outgoing', startTime: Date.now(), video
       } as ActiveCall);
     }
     // LiveKit token arrives via 'group_livekit_token' event
@@ -1292,7 +1294,7 @@ export class AppStateService {
   private handleGroupCallEnded(data: { group_id: string; reason: string }): void {
     const { group_id, reason } = data;
     const call = this.activeCall$.value;
-    const cs   = this.callState$.value;
+    const cs = this.callState$.value;
 
     if (cs === 'idle') return;
     if (call && call.groupId !== group_id) return;
@@ -1350,24 +1352,24 @@ export class AppStateService {
   private buildConversation(key: string): ChatConversation {
     if (key.startsWith('group::')) {
       const groupId = key.slice('group::'.length);
-      const group   = this.groups$.value.find(g => g.group_id === groupId);
+      const group = this.groups$.value.find(g => g.group_id === groupId);
       return {
         key, type: 'group',
-        name:     group?.name ?? groupId,
+        name: group?.name ?? groupId,
         groupId,
         messages: [],
-        unread:   0,
+        unread: 0,
       };
     }
     return {
       key, type: 'dm',
       messages: [],
-      unread:   0,
+      unread: 0,
     };
   }
 
   private ensureGroupConversation(groupId: string, name: string): void {
-    const key   = this.groupKey(groupId);
+    const key = this.groupKey(groupId);
     const convs = this.conversations$.value;
     if (!convs.find(c => c.key === key)) {
       this.conversations$.next([
@@ -1396,7 +1398,7 @@ export class AppStateService {
 
   private _activeConvKey: string | null = null;
   setActiveConversationKey(key: string | null): void { this._activeConvKey = key; }
-  private getActiveConversationKey(): string | null  { return this._activeConvKey; }
+  private getActiveConversationKey(): string | null { return this._activeConvKey; }
 
   // ── Chat send actions ─────────────────────────────────────────────────────
 
@@ -1423,16 +1425,16 @@ export class AppStateService {
 
     const matches = type === 'group'
       ? pending.groupId === groupId
-      : pending.peerId  === peerId;
+      : pending.peerId === peerId;
     if (!matches) return;
 
     setTimeout(() => {
       if (pending.action === 'accept') {
         if (type === 'group' && groupId) this.acceptGroupCallById(groupId);
-        else if (peerId)                 this.acceptCall(peerId);
+        else if (peerId) this.acceptCall(peerId);
       } else {
         if (type === 'group' && groupId) this.rejectGroupCallById(groupId);
-        else if (peerId)                 this.rejectCall(peerId);
+        else if (peerId) this.rejectCall(peerId);
       }
     }, 300);
   }
@@ -1456,7 +1458,7 @@ export class AppStateService {
     const ring = () => {
       try {
         if (!this.audioCtx) this.audioCtx = new AudioContext();
-        const osc  = this.audioCtx.createOscillator();
+        const osc = this.audioCtx.createOscillator();
         const gain = this.audioCtx.createGain();
         osc.connect(gain);
         gain.connect(this.audioCtx.destination);
@@ -1466,7 +1468,7 @@ export class AppStateService {
         gain.gain.exponentialRampToValueAtTime(0.001, this.audioCtx.currentTime + 0.6);
         osc.start(this.audioCtx.currentTime);
         osc.stop(this.audioCtx.currentTime + 0.6);
-      } catch {}
+      } catch { }
     };
     ring();
     this.ringInterval = setInterval(ring, 1500);

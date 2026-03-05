@@ -56,10 +56,16 @@
         <div class="group-actions">
           <button
             class="btn-group-call"
-            (click)="callGroup(group.group_id); $event.stopPropagation()"
+            (click)="callGroup(group.group_id, false); $event.stopPropagation()"
             [disabled]="!callIdle"
-            title="Call group"
+            title="Audio call group"
           >☎</button>
+          <button
+            class="btn-group-call video"
+            (click)="callGroup(group.group_id, true); $event.stopPropagation()"
+            [disabled]="!callIdle"
+            title="Video call group"
+          >📹</button>
           <span class="chevron" [class.open]="expandedGroup === group.group_id">›</span>
         </div>
       </div>

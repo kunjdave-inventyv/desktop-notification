@@ -20,7 +20,7 @@ export class GroupManagerComponent {
   selectedMembers: string[] = [];
   expandedGroup: string | null = null;
 
-  constructor(public state: AppStateService) {}
+  constructor(public state: AppStateService) { }
 
   get callIdle(): boolean { return this.state.callState$.value === 'idle'; }
 
@@ -56,9 +56,9 @@ export class GroupManagerComponent {
     this.expandedGroup = this.expandedGroup === groupId ? null : groupId;
   }
 
-  callGroup(groupId: string): void {
+  callGroup(groupId: string, video: boolean = false): void {
     if (!this.callIdle) return;
-    this.state.makeGroupCall(groupId);
+    this.state.makeGroupCall(groupId, video);
   }
 
   addMember(groupId: string): void {

@@ -76,6 +76,7 @@ pub struct CallSession {
     pub status:           CallStatus,
     pub caller_socket_id: Sid,
     pub participants:     GroupParticipants,
+    pub video:            bool,
     pub _timeout_handle:  Arc<tokio::task::AbortHandle>,
 }
 
@@ -132,7 +133,7 @@ pub struct StoreFcmTokenPayload { pub user_id: String, pub token: String }
 
 // 1-to-1 call events
 #[derive(Debug, Deserialize)]
-pub struct CallPayload    { pub from: String, pub to: String }
+pub struct CallPayload    { pub from: String, pub to: String, pub video: Option<bool> }
 #[derive(Debug, Deserialize)]
 pub struct CancelPayload  { pub from: String, pub to: String }
 #[derive(Debug, Deserialize)]
@@ -164,7 +165,7 @@ pub struct RemoveGroupMemberPayload {
 
 // Group call events
 #[derive(Debug, Deserialize)]
-pub struct GroupCallPayload   { pub from: String, pub group_id: String }
+pub struct GroupCallPayload   { pub from: String, pub group_id: String, pub video: Option<bool> }
 #[derive(Debug, Deserialize)]
 pub struct GroupAcceptPayload { pub from: String, pub group_id: String }
 #[derive(Debug, Deserialize)]
@@ -245,7 +246,7 @@ pub struct UserOfflinePayload { pub user_id: String }
 
 // 1-to-1 call responses
 #[derive(Debug, Serialize)]
-pub struct IncomingCallPayload  { pub from: String }
+pub struct IncomingCallPayload  { pub from: String, pub video: bool }
 #[derive(Debug, Serialize)]
 pub struct CallAcceptedPayload  { pub by: String }
 #[derive(Debug, Serialize)]
@@ -278,6 +279,7 @@ pub struct GroupIncomingCallPayload {
     pub from:       String,
     pub group_id:   String,
     pub group_name: String,
+    pub video:      bool,
 }
 #[derive(Debug, Serialize)]
 pub struct GroupMemberJoinedPayload { pub group_id: String, pub user_id: String }

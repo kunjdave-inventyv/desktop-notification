@@ -39,8 +39,23 @@
   </div>
 </div> -->
 <!-- src/app/components/call-screen/call-screen.component.html -->
-<div class="call-overlay" *ngIf="isVisible" [class.ringing]="isRinging">
-  <div class="call-card" [class.active]="isActive">
+<div class="call-overlay" *ngIf="isVisible" [class.ringing]="isRinging" [class.video-call]="call?.video">
+  <div class="call-card" [class.active]="isActive" [class.has-video]="call?.video">
+
+    <!-- Video Grid (Only visible during active video calls) -->
+    <div class="video-grid" *ngIf="isActive && call?.video">
+      <!-- Remote Video -> Assuming 1:1 for simplicity right now -->
+      <div class="video-container remote" *ngFor="let participant of remoteVideoTracks">
+          <video [srcObject]="mediaStreamFromTrack(participant.track)" autoplay playsinline></video>
+          <div class="video-label">{{ participant.identity }}</div>
+      </div>
+
+      <!-- Local Video -->
+      <div class="video-container local" *ngIf="localVideoTrack">
+          <video [srcObject]="mediaStreamFromTrack(localVideoTrack)" autoplay playsinline muted></video>
+          <div class="video-label">You</div>
+      </div>
+    </div>
 
     <!-- Avatar / pulse ring -->
     <div class="pulse-wrap">
@@ -54,8 +69,8 @@
 
     <!-- State label -->
     <div class="call-status">
-      <span *ngIf="isCalling">Calling…</span>
-      <span *ngIf="isRinging && call?.direction === 'incoming'">Incoming call</span>
+      <span *ngIf="isCalling">{{ call?.video ? 'Video calling…' : 'Calling…' }}</span>
+      <span *ngIf="isRinging && call?.direction === 'incoming'">Incoming {{ call?.video ? 'video ' : '' }}call</span>
       <span *ngIf="isActive">{{ elapsed }}</span>
       <!-- Group participants -->
       <div *ngIf="isActive && call?.type === 'group' && call?.participants?.length" class="participants">
@@ -77,7 +92,7 @@
         <button class="ctrl reject" (click)="cancel()" title="Cancel">✕</button>
       </ng-container>
 
-      <!-- Active call: Mute + End -->
+      <!-- Active call: Mute + Camera + End -->
       <ng-container *ngIf="isActive">
         <button
           class="ctrl mute"
@@ -86,6 +101,16 @@
           [title]="isMuted ? 'Unmute' : 'Mute'"
         >
           {{ isMuted ? '🔇' : '🎤' }}
+        </button>
+
+        <button
+          *ngIf="call?.video"
+          class="ctrl camera"
+          [class.muted]="!isCameraEnabled"
+          (click)="toggleCamera()"
+          [title]="isCameraEnabled ? 'Turn off camera' : 'Turn on camera'"
+        >
+          {{ isCameraEnabled ? '📷' : '🚫📷' }}
         </button>
         <button class="ctrl end" (click)="cutCall()" title="End call">📵</button>
       </ng-container>
